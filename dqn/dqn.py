@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 # Import CV to preprocess image
 import cv2
+import sys
 
 import numpy as np
 
@@ -39,13 +40,22 @@ class MemoryReplay:
         else:
             batch   =   random.sample(self.memory, batch_sz)
 
-        st = torch.FloatTensor([e[0] for e in batch]).to(device)
-        rw = torch.FloatTensor([e[1] for e in batch]).to(device)
-        ac = torch.FloatTensor([e[2] for e in batch]).to(device)
-        ns = torch.FloatTensor([e[3] for e in batch]).to(device)
-        do = torch.FloatTensor([float(e[4]) for e in batch]).to(device)
+        ## st = torch.tensor( np.vstack([e[0] for e in batch]) ).to( device )
+        ## rw = torch.tensor( np.vstack([e[1] for e in batch]) ).to( device )
+        ## ac = torch.tensor( np.vstack([e[2] for e in batch]) ).to( device )
+        ## ns = torch.tensor( np.vstack([e[3] for e in batch]) ).to( device )
+        ## do = torch.tensor( np.vstack([float(e[4]) for e in batch]) ).to( device )
+
+        st = torch.from_numpy(np.vstack([e[0] for e in batch])).float().to(device)
+        rw = torch.from_numpy(np.vstack([e[1] for e in batch])).float().to(device)
+        ac = torch.from_numpy(np.vstack([e[2] for e in batch])).float().to(device)
+        ns = torch.from_numpy(np.vstack([e[3] for e in batch])).float().to(device)
+        do = torch.from_numpy(np.vstack([float(e[4]) for e in batch])).float().to(device)
 
         return (st, rw, ac, ns, do)
+    
+    def __len__(self):
+        return len(self.memory)
 
 
 class DQN(nn.Module):
@@ -88,19 +98,19 @@ class DQN(nn.Module):
 
 def preprocessing(img):
     img     =   img[33:195]  ## Cropping just PONG game
-    gray    =   cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    res     =   cv2.resize(gray, dsize=(84, 84), interpolation= cv2.INTER_LINEAR)
-    return res.astype(float)/255.0
+    img     =   cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    img     =   cv2.resize(img, dsize=(84, 84), interpolation= cv2.INTER_LINEAR)
+    return img.astype(np.float32)/255.0
 
 class Observations:
     def __init__(self):
-        self.obs = deque([np.zeros((84, 84))]*4, maxlen=4)
+        self.obs = deque([np.zeros((84, 84), dtype=np.float32)]*4, maxlen=4)
 
     def Push(self, newobs):
         self.obs.append(newobs)
     
     def Get(self):
-        return np.asarray(self.obs)
+        return np.asarray(self.obs, dtype=np.float32)
     def PushAndGet(self, newobs):
         self.Push(newobs)
         return self.Get()
@@ -111,16 +121,18 @@ def train_dqn(env):
     set_actions =   env.action_space
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    print('DEVICE> ', device)
     GeneralCounter  =   0.0
     FramesCounter   =   0.0
     dqn = DQN(set_actions.n)
+    #dqn.float()
     # Pass dqn to device
     dqn.to(device)
     #dqn.p
     print('Summary>\n', dqn)
 
     memory_replay  =   MemoryReplay(MEMORY_REPLAY_LEN)
-    optimizer       =   optim.Adam(dqn.parameters(), lr=0.0001)
+    optimizer       =   optim.Adam(dqn.parameters(), lr=0.0005)
 
     for episode in range(NUMBER_EPISODES):
         statehandler    =   Observations()
@@ -137,7 +149,7 @@ def train_dqn(env):
                     action  =   set_actions.sample()
                 else:
                     #xin = torch.from_numpy(xin).to(device)
-                    qvalues =   dqn(torch.from_numpy(xin).unsqueeze(0).float().to(device))
+                    qvalues =   dqn(torch.tensor(xin, dtype=torch.float32, device=device).unsqueeze(0))
                     action  =   qvalues.argmax().item()
 
                 ob, rw, done, _     =   env.step(action)
@@ -146,22 +158,23 @@ def train_dqn(env):
                 
                 
                 
-                memory_replay.push(tuple((xin, rw, action, xnew, done)))
+                memory_replay.push((xin, rw, action, xnew, done))
 
                 xin = xnew
-                
-
+                ##
+##
                 batch               =   memory_replay.sample(BATCH_SIZE, device)
                 
                 #print(batch[2].unsqueeze(1).long().shape)
                 #print(dqn(batch[0]).shape)
-                Qpred   =   batch[1] + GAMMA * dqn(batch[3]).max(dim=1)[0] * (1.0 - batch[4])
-                Qtarg   =   torch.gather(dqn(batch[0]), 1, batch[2].unsqueeze(1).long()).squeeze(1)
+                Qpred   =   batch[1] + GAMMA * dqn(batch[3].unsqueeze(0)).max(dim=1)[0] * (1.0 - batch[4])
+                Qtarg   =   torch.gather(dqn(batch[0].unsqueeze(0)), 1, batch[2].unsqueeze(1).long()).squeeze(1)
                 
                 #print(batch[2])
                 
                 loss = F.mse_loss(Qpred, Qtarg)
                 
+                print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
                 #
                 #for dt in batch:
                 #    #print(len(batch))
@@ -206,6 +219,7 @@ def train_dqn(env):
         if GeneralCounter % 5 == 0:
             print('Cum Reward> ', cum_rw)
             print('Frames counted>', FramesCounter)
+            print('len>', len(memory_replay))
             
         cum_rw = 0
         if GeneralCounter % 20 == 0:

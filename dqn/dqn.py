@@ -130,8 +130,9 @@ def train_dqn(env):
     dqn.to(device)
     #dqn.p
     print('Summary>\n', dqn)
-
-    memory_replay  =   MemoryReplay(MEMORY_REPLAY_LEN)
+    
+    loss_print      =   0
+    memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
     optimizer       =   optim.Adam(dqn.parameters(), lr=0.0005)
 
     for episode in range(NUMBER_EPISODES):
@@ -140,8 +141,8 @@ def train_dqn(env):
         ob              =   preprocessing(ob)
         xin             =   statehandler.PushAndGet(ob)  
         cum_rw          =   0
-
-        print('Episode> ', episode+1, 'e_greed> ', e_greed)    
+        
+        print('Episode>\t', episode+1, 'e_greed> ', e_greed)    
         for t in range(EPISODE_MAX_LEN):        
             #env.render()
             if GeneralCounter % 4 == 0:
@@ -170,39 +171,40 @@ def train_dqn(env):
                 
                 #print(batch[2].unsqueeze(1).long().shape)
                 #print(dqn(batch[0]).shape)
-                Qpred   =   batch[1] + GAMMA * dqn(batch[3]).max(dim=1)[0] * (1.0 - batch[4])
+                Qpred   =   batch[1].squeeze(1) + GAMMA * dqn(batch[3]).max(dim=1)[0] * (1.0 - batch[4].squeeze(1))
                 Qtarg   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
                 
                 #print(batch[2])
                 
-                ##loss = F.mse_loss(Qpred, Qtarg)
-                ##
-                ##print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
-                ###
-                ###for dt in batch:
-                ###    #print(len(batch))
-                ###    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
-                ###    if dt[4]:
-                ###        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
-                ###    else:
-                ###        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
-                ###        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
-                ###
-                ###loss = 0
-                ###for ls in losslist:
-                ###    loss = loss + ls*ls
-                ###loss = torch.FloatTensor(loss)
-                ###loss = (loss**2)
-                ####if len(loss) < 2:
-                ###loss = torch(loss)
-                ####else:
-                ####loss = loss.mean()
-                ###loss = loss.mean()
-                ###print(loss)
-                ##optimizer.zero_grad()
-                ##loss.backward()
-                ##optimizer.step()
-                ##
+                loss = F.mse_loss(Qpred, Qtarg)
+                loss_print  =   loss.item()
+                #print(loss.item())
+                #print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
+                #
+                #for dt in batch:
+                #    #print(len(batch))
+                #    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
+                #    if dt[4]:
+                #        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
+                #    else:
+                #        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
+                #        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
+                #
+                #loss = 0
+                #for ls in losslist:
+                #    loss = loss + ls*ls
+                #loss = torch.FloatTensor(loss)
+                #loss = (loss**2)
+                ##if len(loss) < 2:
+                #loss = torch(loss)
+                ##else:
+                ##loss = loss.mean()
+                #loss = loss.mean()
+                #print(loss)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
                 #print(y_pred)
 
                 if FramesCounter < LEN_DECAYING:
@@ -219,13 +221,15 @@ def train_dqn(env):
                 break
 
             GeneralCounter = GeneralCounter + 1.0
-        if GeneralCounter % 5 == 0:
-            print('Cum Reward> ', cum_rw)
-            print('Frames counted>', FramesCounter)
-            print('len>', len(memory_replay))
+        if episode % 5 == 0:
+            print('Score>\t\t', cum_rw)
+            print('Frames counted>\t', FramesCounter)
+            print('len>\t\t', len(memory_replay))
+            print('loss>\t\t', loss_print)
+            print('===============================================')
             
         cum_rw = 0
-        if GeneralCounter % 20 == 0:
+        if GeneralCounter % 50 == 0:
             torch.save( dqn.state_dict(), 'dqn_saved_model.pth' )
 
     torch.save( dqn.state_dict(), 'dqn_saved_model.pth' )

@@ -46,10 +46,10 @@ class MemoryReplay:
         ## ns = torch.tensor( np.vstack([e[3] for e in batch]) ).to( device )
         ## do = torch.tensor( np.vstack([float(e[4]) for e in batch]) ).to( device )
 
-        st = torch.from_numpy(np.vstack([e[0] for e in batch])).float().to(device)
+        st = torch.from_numpy(np.vstack([[e[0]] for e in batch])).float().to(device)
         rw = torch.from_numpy(np.vstack([e[1] for e in batch])).float().to(device)
-        ac = torch.from_numpy(np.vstack([e[2] for e in batch])).float().to(device)
-        ns = torch.from_numpy(np.vstack([e[3] for e in batch])).float().to(device)
+        ac = torch.from_numpy(np.vstack([e[2] for e in batch])).long().to(device)
+        ns = torch.from_numpy(np.vstack([[e[3]] for e in batch])).float().to(device)
         do = torch.from_numpy(np.vstack([float(e[4]) for e in batch])).float().to(device)
 
         return (st, rw, ac, ns, do)
@@ -164,42 +164,45 @@ def train_dqn(env):
                 ##
 ##
                 batch               =   memory_replay.sample(BATCH_SIZE, device)
+                ##
+                if len(memory_replay) < BATCH_SIZE:
+                    continue
                 
                 #print(batch[2].unsqueeze(1).long().shape)
                 #print(dqn(batch[0]).shape)
-                Qpred   =   batch[1] + GAMMA * dqn(batch[3].unsqueeze(0)).max(dim=1)[0] * (1.0 - batch[4])
-                Qtarg   =   torch.gather(dqn(batch[0].unsqueeze(0)), 1, batch[2].unsqueeze(1).long()).squeeze(1)
+                Qpred   =   batch[1] + GAMMA * dqn(batch[3]).max(dim=1)[0] * (1.0 - batch[4])
+                Qtarg   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
                 
                 #print(batch[2])
                 
-                loss = F.mse_loss(Qpred, Qtarg)
-                
-                print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
-                #
-                #for dt in batch:
-                #    #print(len(batch))
-                #    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
-                #    if dt[4]:
-                #        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
-                #    else:
-                #        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
-                #        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
-                #
-                #loss = 0
-                #for ls in losslist:
-                #    loss = loss + ls*ls
-                #loss = torch.FloatTensor(loss)
-                #loss = (loss**2)
-                ##if len(loss) < 2:
-                #loss = torch(loss)
-                ##else:
-                ##loss = loss.mean()
-                #loss = loss.mean()
-                #print(loss)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
+                ##loss = F.mse_loss(Qpred, Qtarg)
+                ##
+                ##print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
+                ###
+                ###for dt in batch:
+                ###    #print(len(batch))
+                ###    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
+                ###    if dt[4]:
+                ###        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
+                ###    else:
+                ###        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
+                ###        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
+                ###
+                ###loss = 0
+                ###for ls in losslist:
+                ###    loss = loss + ls*ls
+                ###loss = torch.FloatTensor(loss)
+                ###loss = (loss**2)
+                ####if len(loss) < 2:
+                ###loss = torch(loss)
+                ####else:
+                ####loss = loss.mean()
+                ###loss = loss.mean()
+                ###print(loss)
+                ##optimizer.zero_grad()
+                ##loss.backward()
+                ##optimizer.step()
+                ##
                 #print(y_pred)
 
                 if FramesCounter < LEN_DECAYING:

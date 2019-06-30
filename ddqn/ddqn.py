@@ -162,8 +162,9 @@ def train_dqn(env):
                     action  =   set_actions.sample()
                 else:
                     #xin = torch.from_numpy(xin).to(device)
-                    qvalues =   dqn(torch.tensor(xin, dtype=torch.float32, device=device).unsqueeze(0))
-                    action  =   qvalues.argmax().item()
+                    with torch.no_grad():
+                        qvalues =   dqn(torch.tensor(xin, dtype=torch.float32, device=device).unsqueeze(0))
+                        action  =   qvalues.argmax().item()
 
                 ob, rw, done, _     =   env.step(action)
                 ob                  =   preprocessing(ob)
@@ -183,8 +184,8 @@ def train_dqn(env):
                 
                 #print(batch[2].unsqueeze(1).long().shape)
                 #print(dqn(batch[0]).shape)
-                Qpred   =   batch[1].squeeze(1) + GAMMA * target_dqn(batch[3]).max(dim=1)[0] * (1.0 - batch[4].squeeze(1))
-                Qtarg   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
+                Qtarg   =   batch[1].squeeze(1) + GAMMA * target_dqn(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
+                Qpred   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
                 
                 #print(batch[2])
                 

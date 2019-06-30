@@ -145,7 +145,7 @@ def train_dqn(env):
     
     loss_print      =   0
     memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
-    optimizer       =   optim.Adam(dqn.parameters(), lr=0.0005)
+    optimizer       =   optim.RMSprop(dqn.parameters())
 
     for episode in range(NUMBER_EPISODES):
         statehandler    =   Observations()
@@ -189,7 +189,7 @@ def train_dqn(env):
                 
                 #print(batch[2])
                 
-                loss = F.mse_loss(Qpred, Qtarg)
+                loss = F.smooth_l1_loss(Qpred, Qtarg)
                 loss_print  =   loss.item()
                 #print(loss.item())
                 #print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))

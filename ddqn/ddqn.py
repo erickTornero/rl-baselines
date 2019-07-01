@@ -15,8 +15,8 @@ import numpy as np
 
 TARGET_UPDATE       =   10000
 BATCH_SIZE          =   32
-MEMORY_REPLAY_LEN   =   10000
-NUMBER_EPISODES     =   1000
+MEMORY_REPLAY_LEN   =   30000
+NUMBER_EPISODES     =   50000
 EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
@@ -145,15 +145,18 @@ def train_dqn(env):
     
     loss_print      =   0
     memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
-    optimizer       =   optim.RMSprop(dqn.parameters())
+    optimizer       =   optim.RMSprop(dqn.parameters(), lr=0.001, momentum=0.95)
 
+    list_reward     =   deque([], maxlen=100)
     for episode in range(NUMBER_EPISODES):
         statehandler    =   Observations()
         ob              =   env.reset()
+        prev_frame      =   ob
         ob              =   preprocessing(ob)
         xin             =   statehandler.PushAndGet(ob)  
         cum_rw          =   0
-        
+    
+
         print('Episode>\t', episode+1, 'e_greed> ', e_greed)    
         for t in range(EPISODE_MAX_LEN):        
             #env.render()
@@ -167,6 +170,13 @@ def train_dqn(env):
                         action  =   qvalues.argmax().item()
 
                 ob, rw, done, _     =   env.step(action)
+
+                # Four lines below to remove flikering
+                prev_frame_tmp      =   ob
+                mat_max             =   ob > prev_frame
+                ob                  =   np.uint8(ob * mat_max + (1 - mat_max)*prev_frame)
+                prev_frame          =   prev_frame_tmp
+
                 ob                  =   preprocessing(ob)
                 xnew                =   statehandler.PushAndGet(ob)
                 
@@ -189,7 +199,8 @@ def train_dqn(env):
                 
                 #print(batch[2])
                 
-                loss = F.smooth_l1_loss(Qpred, Qtarg)
+                loss_fn     =   nn.MSELoss()
+                loss        =   loss_fn(Qpred, Qtarg)
                 loss_print  =   loss.item()
                 #print(loss.item())
                 #print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
@@ -231,17 +242,27 @@ def train_dqn(env):
                 #print(e_greed)
             else:
                 ob, rw, done, _ = env.step(action)
+                # To avoid flikering
+                prev_frame_tmp      =   ob
+                mat_max             =   ob > prev_frame
+                ob                  =   np.uint8(ob * mat_max + (1 - mat_max)*prev_frame)
+                prev_frame          =   prev_frame_tmp
+
+                ob                  =   preprocessing(ob)
+                statehandler.Push(ob)
 
             cum_rw = cum_rw + rw
             if done:
                 break
 
             GeneralCounter = GeneralCounter + 1.0
+        
+        list_reward.append(cum_rw)
         if episode % 5 == 0:
-            print('Score>\t\t', cum_rw)
-            print('Frames counted>\t', FramesCounter)
-            print('len>\t\t', len(memory_replay))
-            print('loss>\t\t', loss_print)
+            print('Mean {} Last Score>\t{}'.format(len(list_reward), sum(list_reward)/len(list_reward)))
+            print('Frames counted>\t\t', FramesCounter)
+            print('len>\t\t\t', len(memory_replay))
+            print('loss>\t\t\t', loss_print)
             print('===============================================')
             
         cum_rw = 0

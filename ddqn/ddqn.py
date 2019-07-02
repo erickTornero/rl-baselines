@@ -16,12 +16,15 @@ import numpy as np
 TARGET_UPDATE       =   10000
 BATCH_SIZE          =   32
 MEMORY_REPLAY_LEN   =   30000
+REPLAY_START_SIZE   =   30000
+
 NUMBER_EPISODES     =   50000
 EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
 GAMMA               =   0.99
-
+LEARNING_RATE       =	0.0001
+TAU                 =   0.001
 LEN_DECAYING        =   1000000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
 
@@ -122,6 +125,10 @@ def copynetwork(targetnet, fromnet):
     for tar_par, par in zip(targetnet.parameters(), fromnet.parameters()):
         tar_par.data.copy_(par.data)
 
+def softupdatenetwork(targetnet, fromnet, tau):
+    for tar_par, par in zip(targetnet.parameters(), fromnet.parameters()):
+        tar_par.data.copy_(par.data*tau + tar_par.data*(1.0-tau))
+
 def train_dqn(env):
     ob      =   env.reset()
     e_greed =   EPSILON_START
@@ -145,7 +152,7 @@ def train_dqn(env):
     
     loss_print      =   0
     memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
-    optimizer       =   optim.RMSprop(dqn.parameters(), lr=0.001, momentum=0.95)
+    optimizer       =   optim.RMSprop(dqn.parameters(), lr=LEARNING_RATE, momentum=0.95)
 
     list_reward     =   deque([], maxlen=100)
     for episode in range(NUMBER_EPISODES):
@@ -185,59 +192,54 @@ def train_dqn(env):
                 memory_replay.push((xin, rw, action, xnew, done))
 
                 xin = xnew
-                ##
-##
-                batch               =   memory_replay.sample(BATCH_SIZE, device)
-                ##
-                if len(memory_replay) < BATCH_SIZE:
-                    continue
                 
                 #print(batch[2].unsqueeze(1).long().shape)
                 #print(dqn(batch[0]).shape)
-                Qtarg   =   batch[1].squeeze(1) + GAMMA * target_dqn(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
-                Qpred   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
-                
-                #print(batch[2])
-                
-                loss_fn     =   nn.MSELoss()
-                loss        =   loss_fn(Qpred, Qtarg)
-                loss_print  =   loss.item()
-                #print(loss.item())
-                #print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
-                #
-                #for dt in batch:
-                #    #print(len(batch))
-                #    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
-                #    if dt[4]:
-                #        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
-                #    else:
-                #        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
-                #        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
-                #
-                #loss = 0
-                #for ls in losslist:
-                #    loss = loss + ls*ls
-                #loss = torch.FloatTensor(loss)
-                #loss = (loss**2)
-                ##if len(loss) < 2:
-                #loss = torch(loss)
-                ##else:
-                ##loss = loss.mean()
-                #loss = loss.mean()
-                #print(loss)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
-                #print(y_pred)
+                if FramesCounter > REPLAY_START_SIZE:
+                    batch               =   memory_replay.sample(BATCH_SIZE, device)
+                    Qtarg   =   batch[1].squeeze(1) + GAMMA * target_dqn(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
+                    Qpred   =   torch.gather(dqn(batch[0]), 1, batch[2].long()).squeeze(1)
+                    
+                    #print(batch[2])
+                    
+                    loss_fn     =   nn.MSELoss()
+                    loss        =   loss_fn(Qpred, Qtarg)
+                    loss_print  =   loss.item()
 
-                if FramesCounter < LEN_DECAYING:
-                    e_greed = e_greed - DECAY_RATE
+                    if e_greed > EPSILON_END:
+                        e_greed = e_greed - DECAY_RATE
+                    #print(loss.item())
+                    #print('len>', len(memory_replay), 'bytes> ', sys.getsizeof(memory_replay))
+                    #
+                    #for dt in batch:
+                    #    #print(len(batch))
+                    #    qvalues_    =  dqn(torch.from_numpy(dt[0]).unsqueeze(0).float())
+                    #    if dt[4]:
+                    #        losslist.append(torch.tensor(dt[2]) - qvalues_.data[0, dt[1]])
+                    #    else:
+                    #        qvalues = dqn(torch.from_numpy(dt[3]).unsqueeze(0).float())
+                    #        losslist.append(torch.tensor(rw) + GAMMA * qvalues.max() - qvalues_.data[0, dt[1]])   
+                    #
+                    #loss = 0
+                    #for ls in losslist:
+                    #    loss = loss + ls*ls
+                    #loss = torch.FloatTensor(loss)
+                    #loss = (loss**2)
+                    ##if len(loss) < 2:
+                    #loss = torch(loss)
+                    ##else:
+                    ##loss = loss.mean()
+                    #loss = loss.mean()
+                    #print(loss)
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    if FramesCounter % TARGET_UPDATE == 0:
+                        print('Updating Target Network ...')
+                        softupdatenetwork(target_dqn, dqn, TAU)
 
                 FramesCounter   = FramesCounter + 1
 
-                if FramesCounter % TARGET_UPDATE == 0:
-                    copynetwork(target_dqn, dqn)
                 
                 #print(e_greed)
             else:

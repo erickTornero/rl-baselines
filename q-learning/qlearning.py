@@ -8,9 +8,9 @@ import torch.nn.functional as F
 from collections import deque
 
 
-TARGET_UPDATE       =   1000
+TARGET_UPDATE       =   10
 BATCH_SIZE          =   32
-MEMORY_REPLAY_LEN   =   1000000
+MEMORY_REPLAY_LEN   =   200000
 REPLAY_START_SIZE   =   10000
 
 NUMBER_EPISODES     =   500000
@@ -18,7 +18,7 @@ EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
 GAMMA               =   0.99
-LEARNING_RATE       =	0.1
+LEARNING_RATE       =	1e-4
 TAU                 =   0.001
 LEN_DECAYING        =   1000000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
@@ -86,8 +86,8 @@ def train_qlearner(env):
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print('DEVICE> ', device)
-    GeneralCounter  =   0.0
-    FramesCounter   =   0.0
+    GeneralCounter  =   0
+    FramesCounter   =   0
 
     qlearner        =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
     target_qlearner =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
@@ -98,7 +98,7 @@ def train_qlearner(env):
 
     loss_print      =   0
     memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
-    optimizer       =   optim.RMSprop(qlearner.parameters(), lr=LEARNING_RATE, momentum=0.95)
+    optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE) # CAMBIAR POR Adam
     list_reward     =   deque([], maxlen=100)
     action = 0
     for episode in range(NUMBER_EPISODES):
@@ -108,7 +108,8 @@ def train_qlearner(env):
         if (episode+1)%1000==0:
             print('Episode>\t', episode+1, 'e_greed> ', e_greed)
         for t in range(EPISODE_MAX_LEN): 
-            if GeneralCounter % 1 == 0:
+            ## if GeneralCounter % 1 == 0:
+            if True:
                 if random.random() < e_greed:
                     action  =   set_actions.sample()
                 else:
@@ -123,27 +124,35 @@ def train_qlearner(env):
                 ob                      =   obnew
                 if FramesCounter > REPLAY_START_SIZE:
                     batch               =   memory_replay.sample(BATCH_SIZE, device)
-                    Qtarg   =   batch[1].squeeze(1) + GAMMA * target_qlearner(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
+                    with torch.no_grad() :
+                        Qtarg   =   batch[1].squeeze(1) + GAMMA * target_qlearner(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
+
                     Qpred   =   torch.gather(qlearner(batch[0]), 1, batch[2].long()).squeeze(1)
 
                     # Training steps
-                    #loss_fn     =   nn.MSELoss()
-                    loss        =   (Qtarg - Qpred)**2
-                    loss        =   loss.mean()
-                    loss        =   loss.clamp(-1.0,1.0)
-                    #loss        =   loss_fn(Qpred, Qtarg)
+                    loss_fn     =   nn.MSELoss()  # CAMBIAR A mse loss
+                    #loss        =   (Qtarg - Qpred)
+                    #loss        =   loss.clamp(-20.0,20.0)
+                    ##print(loss.shape)
+                    #loss        =   loss**2
+                    #loss        =   loss.mean()
+                    loss        =   loss_fn(Qpred, Qtarg)
                     loss_print  =   loss.item()
-                    print('loss> ', loss_print)
-                    if e_greed > EPSILON_END:
-                        e_greed = e_greed - DECAY_RATE
+                    #print('loss> ', loss_print)
+                    ## if e_greed > EPSILON_END:
+                    ##     e_greed = e_greed - DECAY_RATE
+
+                    e_greed = max( EPSILON_END, e_greed - DECAY_RATE ) # CAMBIAR A EXPONENTIAL DECAY 
                     
                     # Optimizing network
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
                     if FramesCounter % TARGET_UPDATE == 0:
-                        print('Updating Target Network ...')
+                        #print('Updating Target Network ...')
                         softupdatenetwork(target_qlearner, qlearner, TAU)
+                    if ((episode+1)%10==0) & (t%10==0):
+                        print('[{}, {}] \t\t {}\t\t{}'.format(episode+1, t, loss_print, e_greed))
                 
                 FramesCounter = FramesCounter + 1
             
@@ -156,8 +165,8 @@ def train_qlearner(env):
             if done:
                 break
         list_reward.append(cum_rw)
-        #if episode%1000 == 0:
-        #    print('Mean {} Last Score>\t{}'.format(len(list_reward), sum(list_reward)/len(list_reward)))
+        if episode%100 == 0:
+            print('**************************\nMean {} Last Score>\t{}'.format(len(list_reward), sum(list_reward)/len(list_reward)))
         #    print('Frames counted>\t\t', FramesCounter)
         #    print('len>\t\t\t', len(memory_replay))
         #    print('loss>\t\t\t', loss_print)
@@ -171,9 +180,44 @@ def train_qlearner(env):
     torch.save( qlearner.state_dict(), 'dqn_saved_model.pth' )
 
 
-env =   gym.make('CartPole-v0')
-train_qlearner(env)
+def testqlearner(env, name, n_episodes):
+    set_actions =   env.action_space
+    qlearner    =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
+    qlearner.load_state_dict(torch.load(name))
+    qlearner.eval()
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print('DEVICE> ', device)
+    print(qlearner)
+    qlearner.to(device)
+    import matplotlib.pyplot as plt
+    from IPython import display
+    for ep in range(1, n_episodes+1):
+        ob              =   env.reset() 
+        cum_rw          =   0
 
+        for t in range(EPISODE_MAX_LEN): 
+            #action = set_actions.sample()
+            env.render()
+            with torch.no_grad():
+                qvalues =   qlearner(torch.tensor(ob, dtype=torch.float32, device=device).unsqueeze(0))
+                action  =   qvalues.argmax().item()
+                #print(action)
+            ob, rw, done, _     =   env.step(action)
+            cum_rw = cum_rw + rw
+            if done:
+                break
+            
+        print(cum_rw)
+        cum_rw = 0
+        
+
+            
+
+
+env =   gym.make('CartPole-v0')
+#train_qlearner(env)
+
+testqlearner(env, './dqn_saved_model.pth',50)
 env.close()
 
             

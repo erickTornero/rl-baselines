@@ -18,6 +18,7 @@ LEARNING_RATE       =	1e-2
 TAU                 =   0.001
 LEN_DECAYING        =   50000.0
 
+optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE)
 
 NETWORK:  
 class SimpleMLP(nn.Module):
@@ -52,6 +53,9 @@ TAU                 =   0.001
 LEN_DECAYING        =   100000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
 
+
+optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE)
+
 NETWORK:
 class SimpleMLP(nn.Module):
     def __init__(self, space_n, action_n):
@@ -63,3 +67,71 @@ class SimpleMLP(nn.Module):
         x           =   self.lin2(x)
         return x
 
+
+============================================================================
+ID_EXECUTION        =   'XS003'
+
+
+TRAINING            =   True
+USE_BATCH_NORM      =   False
+
+TARGET_UPDATE       =   2
+BATCH_SIZE          =   32
+MEMORY_REPLAY_LEN   =   200000
+REPLAY_START_SIZE   =   100
+
+NUMBER_EPISODES     =   500000
+EPISODE_MAX_LEN     =   10000
+EPSILON_START       =   1.0
+EPSILON_END         =   0.1
+GAMMA               =   0.99
+LEARNING_RATE       =	2e-2
+TAU                 =   0.001
+LEN_DECAYING        =   1000.0
+DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
+
+optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE)
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.lin2(x)
+        return x
+
+==============================================================================
+ID_EXECUTION        =   'XS004'
+
+TRAINING            =   True
+USE_BATCH_NORM      =   False
+
+TARGET_UPDATE       =   2
+BATCH_SIZE          =   32
+MEMORY_REPLAY_LEN   =   200000
+REPLAY_START_SIZE   =   100
+
+NUMBER_EPISODES     =   500000
+EPISODE_MAX_LEN     =   10000
+EPSILON_START       =   1.0
+EPSILON_END         =   0.1
+GAMMA               =   0.99
+LEARNING_RATE       =	2e-3
+TAU                 =   0.001
+LEN_DECAYING        =   1000.0
+DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
+
+
+optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE)
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.lin2(x)
+        return x

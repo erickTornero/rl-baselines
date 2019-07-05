@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from collections import deque
 import pickle
 
-ID_EXECUTION        =   'XS003'
-TRAINING            =   True
+ID_EXECUTION        =   'XS004'
+TRAINING            =   False
 USE_BATCH_NORM      =   False
 
 TARGET_UPDATE       =   2
@@ -22,7 +22,7 @@ EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
 GAMMA               =   0.99
-LEARNING_RATE       =	2e-2
+LEARNING_RATE       =	2e-3
 TAU                 =   0.001
 LEN_DECAYING        =   1000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
@@ -232,7 +232,7 @@ def train_qlearner(env):
 
 def testqlearner(env, name, n_episodes):
     set_actions =   env.action_space
-    qlearner    =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
+    qlearner    =   SimpleMLP(env.observation_space.shape[0], set_actions.n)
     qlearner.load_state_dict(torch.load(name))
     qlearner.eval()
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

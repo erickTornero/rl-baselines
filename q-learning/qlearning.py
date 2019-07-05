@@ -6,21 +6,25 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from collections import deque
+import pickle
 
+ID_EXECUTION        =   'XS003'
+TRAINING            =   True
+USE_BATCH_NORM      =   False
 
-TARGET_UPDATE       =   10
+TARGET_UPDATE       =   2
 BATCH_SIZE          =   32
 MEMORY_REPLAY_LEN   =   200000
-REPLAY_START_SIZE   =   10000
+REPLAY_START_SIZE   =   100
 
 NUMBER_EPISODES     =   500000
 EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
 GAMMA               =   0.99
-LEARNING_RATE       =	1e-4
+LEARNING_RATE       =	2e-2
 TAU                 =   0.001
-LEN_DECAYING        =   1000000.0
+LEN_DECAYING        =   1000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
 
 
@@ -68,6 +72,34 @@ class MlpQLearner(nn.Module):
         x   =   F.relu(self.lin3(x))
         x   =   self.linout(x)
         return  x
+    
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.lin2(x)
+        return x
+
+class MlpQLearnerBN(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(MlpQLearnerBN, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 20)
+        self.bn1    =   nn.BatchNorm1d(20)
+        self.lin2   =   nn.Linear(20,80)
+        self.bn2    =   nn.BatchNorm1d(80)
+        self.lin3   =   nn.Linear(80, 20)
+        self.bn3    =   nn.BatchNorm1d(20)
+        self.linout =   nn.Linear(20, action_n)
+    
+    def forward(self, obs):
+        x   =   F.relu(self.bn1(self.lin1(obs)))
+        x   =   F.relu(self.bn2(self.lin2(x)))
+        x   =   F.relu(self.bn3(self.lin3(x)))
+        x   =   self.linout(x)
+        return  x
 
 
 def softupdatenetwork(targetnet, fromnet, tau):
@@ -84,14 +116,22 @@ def train_qlearner(env):
     e_greed     =   EPSILON_START
     set_actions =   env.action_space
 
+    plotting_rw =   list()
+
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print('DEVICE> ', device)
     GeneralCounter  =   0
     FramesCounter   =   0
 
-    qlearner        =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
-    target_qlearner =   MlpQLearner(env.observation_space.shape[0], set_actions.n)
+    if USE_BATCH_NORM==True:
+        qlearner        =   MlpQLearnerBN(env.observation_space.shape[0], set_actions.n)
+        target_qlearner =   MlpQLearnerBN(env.observation_space.shape[0], set_actions.n)
+        qlearner = qlearner.train()
+    else:
+        qlearner        =   SimpleMLP(env.observation_space.shape[0], set_actions.n)
+        target_qlearner =   SimpleMLP(env.observation_space.shape[0], set_actions.n)
 
+    
     copynetwork(target_qlearner, qlearner)
     qlearner.to(device)
     target_qlearner.to(device)
@@ -115,8 +155,10 @@ def train_qlearner(env):
                 else:
                     #xin = torch.from_numpy(xin).to(device)
                     with torch.no_grad():
+                        qlearner.eval()
                         qvalues =   qlearner(torch.tensor(ob, dtype=torch.float32, device=device).unsqueeze(0))
                         action  =   qvalues.argmax().item()
+                        qlearner.train()
 
                 obnew, rw, done, _     =   env.step(action)
 
@@ -165,8 +207,11 @@ def train_qlearner(env):
             if done:
                 break
         list_reward.append(cum_rw)
-        if episode%100 == 0:
-            print('**************************\nMean {} Last Score>\t{}'.format(len(list_reward), sum(list_reward)/len(list_reward)))
+        if (episode+1)%100 == 0:
+            meanrw = sum(list_reward)/len(list_reward)
+            print('**************************\nMean {} Last Score>\t{}'.format(len(list_reward), meanrw))
+            plotting_rw.append(meanrw)
+
         #    print('Frames counted>\t\t', FramesCounter)
         #    print('len>\t\t\t', len(memory_replay))
         #    print('loss>\t\t\t', loss_print)
@@ -174,10 +219,15 @@ def train_qlearner(env):
         
         if episode % 1000 == 0:
             print('Saving Model...')
-            torch.save( qlearner.state_dict(), 'dqn_saved_model.pth' )
+            torch.save( qlearner.state_dict(), ID_EXECUTION+'-model.pth' )
+            fichero = open(ID_EXECUTION+'-rw.pckl', 'wb')
+            pickle.dump(plotting_rw, fichero)
+            fichero.close()
+            del(fichero)
+
         cum_rw = 0
     
-    torch.save( qlearner.state_dict(), 'dqn_saved_model.pth' )
+    torch.save( qlearner.state_dict(), ID_EXECUTION+'-model.pth' )
 
 
 def testqlearner(env, name, n_episodes):
@@ -215,9 +265,10 @@ def testqlearner(env, name, n_episodes):
 
 
 env =   gym.make('CartPole-v0')
-#train_qlearner(env)
-
-testqlearner(env, './dqn_saved_model.pth',50)
+if TRAINING == True:
+    train_qlearner(env)
+else:
+    testqlearner(env, ID_EXECUTION + '-model.pth',50)
 env.close()
 
             

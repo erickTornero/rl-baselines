@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from collections import deque
 import pickle
 
-ID_EXECUTION        =   'XS004'
-TRAINING            =   False
+ID_EXECUTION        =   'XS008'
+TRAINING            =   True
 USE_BATCH_NORM      =   False
 
 TARGET_UPDATE       =   2
@@ -22,7 +22,7 @@ EPISODE_MAX_LEN     =   10000
 EPSILON_START       =   1.0
 EPSILON_END         =   0.1
 GAMMA               =   0.99
-LEARNING_RATE       =	2e-3
+LEARNING_RATE       =	1e-4
 TAU                 =   0.001
 LEN_DECAYING        =   1000.0
 DECAY_RATE          =   (-EPSILON_END + EPSILON_START)/LEN_DECAYING
@@ -139,6 +139,7 @@ def train_qlearner(env):
     loss_print      =   0
     memory_replay   =   MemoryReplay(MEMORY_REPLAY_LEN)
     optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE) # CAMBIAR POR Adam
+    #optimizer       =   optim.RMSprop(qlearner.parameters(), lr=LEARNING_RATE, momentum=0.95)
     list_reward     =   deque([], maxlen=100)
     action = 0
     for episode in range(NUMBER_EPISODES):

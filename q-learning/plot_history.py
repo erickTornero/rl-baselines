@@ -10,7 +10,7 @@ class PlotComparison():
     def appendfile(self, names):
         self.filenames.append(names)
     
-    def show(self, step=100, max_n_steps = -1):
+    def show(self, step=100, max_n_steps = -1, legend = []):
         files = list()
         for fn in self.filenames:
             files.append(open(fn, 'rb'))
@@ -29,8 +29,10 @@ class PlotComparison():
 
         for rw_list in rw_lists:
             plt.plot(xvals, np.asarray(rw_list[:min_len]))
-        plt.legend(self.filenames)
+        
+        legn = legend if len(legend) > 0 else self.filenames
+        plt.legend(legn)
         plt.show()
     
-plothandler =   PlotComparison(['XS001-rw.pckl','XS002-rw.pckl'])
-plothandler.show(step=100, max_n_steps=200)
+plothandler =   PlotComparison(['XS005-rw.pckl','XS007-rw.pckl'])
+plothandler.show(step=100, max_n_steps=200, legend=['Adam', 'RMSprop'])

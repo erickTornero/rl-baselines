@@ -12,4 +12,6 @@ Comparison using Adam vs RMSprop optimization algorithms
 
 ![alt text](AdamvsRMSProp.png)
 
+![alt text](tanhvsrelu.png)
+
 Learning Rate: 0.0001

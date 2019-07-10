@@ -15,7 +15,7 @@ USE_BATCH_NORM      =   False
 TARGET_UPDATE       =   2
 BATCH_SIZE          =   32
 MEMORY_REPLAY_LEN   =   200000
-REPLAY_START_SIZE   =   200000
+REPLAY_START_SIZE   =   100
 
 NUMBER_EPISODES     =   500000
 EPISODE_MAX_LEN     =   10000
@@ -36,8 +36,8 @@ class SumTree():
         self.capacity   =   memlen
         self.tree       =   np.zeros(2 * self.capacity - 1)
 
-        self.data       =   [None] * self.capacity
-        #self.data       =   np.zeros(self.capacity, dtype=object)
+        #self.data       =   [None] * self.capacity
+        self.data       =   np.zeros(self.capacity, dtype=object)
 
     def add(self, priority, tuple_data):
         leaf_index              =   self.index + self.capacity - 1
@@ -55,6 +55,9 @@ class SumTree():
         while leaf_index != 0:
             leaf_index              =   (leaf_index - 1) // 2
             self.tree[leaf_index]   =   self.tree[leaf_index] + propagate
+        
+        ##if np.sum(np.isnan(self.tree)) > 0:
+        ##    a2 = 1
 
     
     def get_leaf(self, v):
@@ -100,26 +103,27 @@ class MemoryReplayPRE:
         self.tree.add(maxprob, data_tuple)
     
     def sample(self, batch_sz, device=torch.device('cpu')):
-        b_idx, isw = np.empty((batch_sz,), dtype=np.int32), np.empty((batch_sz, 1), dtype=np.float32)
+        b_idx, isw = np.empty((batch_sz,), dtype=np.int32), np.empty((batch_sz), dtype=np.float32)
         b_memory = list()
-        pri_seg =   self.tree.total_priority/batch_sz
+        segment =   self.tree.total_priority/batch_sz
         
         # Annealing beta from 0.4 to 1.0 exponent of important sampling
         self.beta   =   np.min([1., self.beta + self.beta_inc_rate])
 
         min_prob    =   np.min(self.tree.tree[-self.tree.capacity:])/self.tree.total_priority
         max_weight = (min_prob * batch_sz) ** (-self.beta)
-        max_weight = max(0.001, max_weight)
+        #max_weight = max(0.001, max_weight)
         for i in range(batch_sz):
-            ax, bx    =   pri_seg * i, pri_seg * (i + 1)
+            ax, bx    =   segment * i, segment * (i + 1)
             v       =   np.random.uniform(ax,bx)
 
             idx, p, data    =   self.tree.get_leaf(v)
             prob        =   p/self.tree.total_priority
-            isw[i, 0]   =   np.power(prob * batch_sz, -self.beta)/max_weight
+            isw[i]   =   np.power(prob * batch_sz, -self.beta)
             b_idx[i]=  idx
             b_memory.append(data)
-        
+        isw =   isw/isw.max()
+
         st = torch.from_numpy(np.vstack([[e[0]] for e in b_memory])).float().to(device)
         rw = torch.from_numpy(np.vstack([e[1] for e in b_memory])).float().to(device)
         ac = torch.from_numpy(np.vstack([e[2] for e in b_memory])).long().to(device)
@@ -278,6 +282,8 @@ def train_qlearner(env):
                 memory_replay.push((ob, rw, action, obnew, done))
                 ob                      =   obnew
                 if FramesCounter > REPLAY_START_SIZE:
+                    ##if np.sum(np.isnan(memory_replay.tree.tree[-memory_replay.tree.capacity:])) > 0:
+                    ##    a2 = 1
                     batch, IWS, b_index         =   memory_replay.sample(BATCH_SIZE, device)
                     with torch.no_grad() :
                         Qtarg   =   batch[1].squeeze(1) + GAMMA * target_qlearner(batch[3]).max(dim=1)[0].detach() * (1.0 - batch[4].squeeze(1))
@@ -293,14 +299,14 @@ def train_qlearner(env):
                     loss        =   Qtarg - Qpred
                     #loss        =   loss.clamp(-20.0,20.0)
                     ##print(loss.shape)
-                    loss        =   IWS.squeeze(1) * (loss**2)
+                    loss        =   IWS * (loss**2)
                     loss        =   loss.mean()
                     #loss        =   loss_fn(Qpred, Qtarg)
                     loss_print  =   loss.item()
                     #print('loss> ', loss_print)
                     ## if e_greed > EPSILON_END:
                     ##     e_greed = e_greed - DECAY_RATE
-                    memory_replay.batch_update(b_index, np.asarray(td_err.to('cpu')))
+                    memory_replay.batch_update(b_index, np.asarray(newpriorities.to('cpu')))
 
                     e_greed = max( EPSILON_END, e_greed - DECAY_RATE ) # CAMBIAR A EXPONENTIAL DECAY 
                     

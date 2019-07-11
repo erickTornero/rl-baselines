@@ -39,9 +39,10 @@ def reinforce(env):
     device      =   torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
     pg_net      =   SimpleMLP(env.observation_space.shape[0], set_actions.n)
-    optimizer   =   optim.SGD(pg_net.parameters(), LEARNING_RATE)
+    optimizer   =   optim.Adam(pg_net.parameters(), LEARNING_RATE)
     pg_net.to(device)
     print(pg_net)
+    list_reward     =   deque([], maxlen=100)
     #Transition      =   namedtuple('Transition',['S','action','reward','Snext','done'])
     for episode in range(NUMBER_EPISODES):
         ob              =   env.reset() 
@@ -90,22 +91,25 @@ def reinforce(env):
         #print(G)
         ## Pass to device necessary tensors
         rewards_torch   =   torch.from_numpy(G).to(device)
+        #rewards_torch   =   (rewards_torch - rewards_torch.mean())/rewards_torch.std()
         states_torch    =   torch.from_numpy(np.vstack([st] for st in states_list)).float().to(device)
         gamma_torch     =   GAMMA ** torch.arange(n_steps, dtype=torch.float32, device=device)
         actions_torch   =   torch.from_numpy(np.asarray(action_list)).long().to(device)
 
         act_prob        =   torch.gather(pg_net(states_torch), 1, actions_torch.unsqueeze(1)).squeeze(1)
 
-        loss            =   gamma_torch * rewards_torch * act_prob
+        loss            =   gamma_torch * rewards_torch * torch.log(act_prob)
         loss            =   -loss.sum()
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
+        list_reward.append(cum_rw)
         # Got the probability of acion chosen
         if (episode + 1) % 100 == 0:
-            print('[{} Episode]\t-->\treward> {}\tloss> {}\t'.format(episode + 1, cum_rw, loss.item()))
+            meanrw = sum(list_reward)/len(list_reward)
+            print('[{} Episode]\t-->\treward> {}\tloss> {}\t'.format(episode + 1, meanrw, loss.item()))
             #data_epsiode.append(Transition(ob, action, rw, obnew, done))
         cum_rw = 0
 

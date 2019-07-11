@@ -70,13 +70,44 @@ def reinforce(env):
             # T + 1
             reward_list.append(rw)
             ob                  =   obnew
+            cum_rw              =   cum_rw + rw
         
-        print(len(states_list))
-        print(len(action_list))
-        print(len(reward_list))
-        break
-            #data_epsiode.append(Transition(ob, action, rw, obnew, done))
+        #print(len(states_list))
+        #
+        #print(len(action_list))
+        #print(reward_list)
+        rewards =   np.asarray(reward_list, dtype=np.float32)
+        # Training
+        # Compute G from step 0 to T - 1
+        
+        n_steps =   len(reward_list)
+        G = np.zeros(n_steps, dtype=np.float32)
+        
+        for i in range(0, n_steps):
+            factor  =   GAMMA ** (np.arange(0, n_steps - i))
+            G[i]    =   (rewards[i:] * factor).sum()
+        
+        #print(G)
+        ## Pass to device necessary tensors
+        rewards_torch   =   torch.from_numpy(G).to(device)
+        states_torch    =   torch.from_numpy(np.vstack([st] for st in states_list)).float().to(device)
+        gamma_torch     =   GAMMA ** torch.arange(n_steps, dtype=torch.float32, device=device)
+        actions_torch   =   torch.from_numpy(np.asarray(action_list)).long().to(device)
 
+        act_prob        =   torch.gather(pg_net(states_torch), 1, actions_torch.unsqueeze(1)).squeeze(1)
+
+        loss            =   gamma_torch * rewards_torch * act_prob
+        loss            =   -loss.sum()
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Got the probability of acion chosen
+        if (episode + 1) % 100 == 0:
+            print('[{} Episode]\t-->\treward> {}\tloss> {}\t'.format(episode + 1, cum_rw, loss.item()))
+            #data_epsiode.append(Transition(ob, action, rw, obnew, done))
+        cum_rw = 0
 
 env =   gym.make('CartPole-v0')
 

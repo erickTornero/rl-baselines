@@ -1,3 +1,5 @@
+# Implementation of reinforce algorithm:
+# Based on the proposal of Richard Sutton
 import gym
 import numpy as np
 import random
@@ -9,14 +11,14 @@ from torch.distributions import Categorical
 from collections import deque, namedtuple
 import pickle
 
-ID_EXECUTION        =   'XS009'
+ID_EXECUTION        =   'XS003-VPG'
 TRAINING            =   True
 
 NUMBER_EPISODES     =   500000
 EPISODE_MAX_LEN     =   10000
 
 GAMMA               =   0.99
-LEARNING_RATE       =	1e-4
+LEARNING_RATE       =	1e-3
 
 class SimpleMLP(nn.Module):
     def __init__(self, space_n, action_n):
@@ -43,6 +45,7 @@ def reinforce(env):
     pg_net.to(device)
     print(pg_net)
     list_reward     =   deque([], maxlen=100)
+    plotting_rw     =   list()
     #Transition      =   namedtuple('Transition',['S','action','reward','Snext','done'])
     for episode in range(NUMBER_EPISODES):
         ob              =   env.reset() 
@@ -73,10 +76,6 @@ def reinforce(env):
             ob                  =   obnew
             cum_rw              =   cum_rw + rw
         
-        #print(len(states_list))
-        #
-        #print(len(action_list))
-        #print(reward_list)
         rewards =   np.asarray(reward_list, dtype=np.float32)
         # Training
         # Compute G from step 0 to T - 1
@@ -91,7 +90,7 @@ def reinforce(env):
         #print(G)
         ## Pass to device necessary tensors
         rewards_torch   =   torch.from_numpy(G).to(device)
-        #rewards_torch   =   (rewards_torch - rewards_torch.mean())/rewards_torch.std()
+        rewards_torch   =   (rewards_torch - rewards_torch.mean())/rewards_torch.std()
         states_torch    =   torch.from_numpy(np.vstack([st] for st in states_list)).float().to(device)
         gamma_torch     =   GAMMA ** torch.arange(n_steps, dtype=torch.float32, device=device)
         actions_torch   =   torch.from_numpy(np.asarray(action_list)).long().to(device)
@@ -110,8 +109,27 @@ def reinforce(env):
         if (episode + 1) % 100 == 0:
             meanrw = sum(list_reward)/len(list_reward)
             print('[{} Episode]\t-->\treward> {}\tloss> {}\t'.format(episode + 1, meanrw, loss.item()))
+            plotting_rw.append(meanrw)
             #data_epsiode.append(Transition(ob, action, rw, obnew, done))
         cum_rw = 0
+
+        if (episode + 1)%500 == 0:
+            # Saving network
+            print('**Saving weights of Network and Rewards**')
+            torch.save(pg_net.state_dict(), ID_EXECUTION + '-model.pth')
+            # Saving List reward
+            file    =   open(ID_EXECUTION+'-rw.pckl', 'wb')
+            pickle.dump(plotting_rw, file)
+            file.close()
+            del(file)
+    
+    # End of training, save parameters
+    torch.save(pg_net.state_dict(), ID_EXECUTION + '-model.pth')
+    file    =   open(ID_EXECUTION+'-rw.pckl', 'wb')
+    pickle.dump(plotting_rw, file)
+    file.close()
+    del(file)
+
 
 env =   gym.make('CartPole-v0')
 

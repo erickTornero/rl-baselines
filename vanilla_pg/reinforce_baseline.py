@@ -19,7 +19,7 @@ EPISODE_MAX_LEN     =   10000
 
 GAMMA               =   0.99
 LEARNING_RATE       =	1e-3
-LEARNING_RATE_V     =   1e-3
+LEARNING_RATE_V     =   1e-2
 
 class SimpleMLP(nn.Module):
     def __init__(self, space_n, action_n):
@@ -111,11 +111,15 @@ def reinforce(env):
         states_torch    =   torch.from_numpy(np.vstack([st] for st in states_list)).float().to(device)
         value_state     =   st_val_net(states_torch).squeeze(1)
 
-        loss_st_fn      =   nn.MSELoss()
-        loss_st_val     =   loss_st_fn(rewards_torch, value_state)
-        loss_st_val     =   loss_st_val.sum()
+        #loss_st_fn      =   nn.MSELoss()
+        #loss_st_val     =   loss_st_fn(rewards_torch, value_state)
+        #loss_st_val     =   loss_st_val.sum()
+
         with torch.no_grad():
             delta       =   rewards_torch - value_state
+
+
+        loss_st_val     =   -(value_state * delta).sum()
 
         gamma_torch     =   GAMMA ** torch.arange(n_steps, dtype=torch.float32, device=device)
         actions_torch   =   torch.from_numpy(np.asarray(action_list)).long().to(device)

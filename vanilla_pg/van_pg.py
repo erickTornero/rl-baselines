@@ -131,6 +131,36 @@ def reinforce(env):
     del(file)
 
 
+def play(env, namemodel, n_episodes):
+    set_actions =   env.action_space
+    pg_net      =   SimpleMLP(env.observation_space.shape[0], set_actions.n)
+    pg_net.load_state_dict(torch.load(namemodel))
+    pg_net.eval()
+    device  = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print('DEVICE> ', device)
+    print(pg_net)
+    pg_net.to(device)
+    for ep in range(1, n_episodes + 1):
+        ob      =   env.reset()
+        cum_rw  =   0
+        done    =   False
+        while not done:
+            env.render()
+            with torch.no_grad():
+                probs_policy    =   pg_net(torch.tensor(ob, dtype=torch.float32, device=device).unsqueeze(0))
+                distribution_S  =   Categorical(probs_policy)
+                action          =   distribution_S.sample().item()
+            
+            ob, rw, done, _     =   env.step(action)
+            cum_rw              =   cum_rw + rw
+        
+        print('{} Episode\t-->\ttotal reward>\t{}'.format(ep, cum_rw))
+#env =   gym.make('CartPole-v0')
 env =   gym.make('CartPole-v0')
+if TRAINING==True:
+    reinforce(env)
+else:
+    play(env, ID_EXECUTION+'-model.pth', 20)
 
-reinforce(env)
+
+env.close()

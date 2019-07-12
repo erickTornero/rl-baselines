@@ -1,0 +1,79 @@
+# Iteracion XS001-VPG:  CartPole-v0
+
+LR=1e-4
+gamma=0.99
+Network:
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+        self.softmax    =   nn.Softmax(dim=-1)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.softmax(self.lin2(x))
+        return x
+
+Reward no normalized
+
+================================================================
+# Iteracion XS002-VPG   CartPole-v0
+
+LR=1e-4
+gamma=0.99
+Network:
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+        self.softmax    =   nn.Softmax(dim=-1)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.softmax(self.lin2(x))
+        return x
+
+Reward Normalized
+
+==================================================================
+# Iteracion XS003-VPG   CartPole-v0
+
+LR=1e-3
+gamma=0.99
+Network:
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+        self.softmax    =   nn.Softmax(dim=-1)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.softmax(self.lin2(x))
+        return x
+
+Reward Normalized:
+
+
+==================================================================
+# Iteracion XS004-VPG   LunarLander-v2
+
+LR=1e-3
+gamma=0.99
+Network:
+
+class SimpleMLP(nn.Module):
+    def __init__(self, space_n, action_n):
+        super(SimpleMLP, self).__init__()
+        self.lin1   =   nn.Linear(space_n, 64)
+        self.lin2   =   nn.Linear(64, action_n)
+        self.softmax    =   nn.Softmax(dim=-1)
+    def forward(self, obs):
+        x           =   torch.tanh(self.lin1(obs))
+        x           =   self.softmax(self.lin2(x))
+        return x
+
+Reward Normalized:

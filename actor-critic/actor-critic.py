@@ -11,14 +11,14 @@ from torch.distributions import Categorical
 from collections import deque
 import pickle
 
-ID_EXECUTION        =   'XS003-AC'
+ID_EXECUTION        =   'XS001-AC'
 TRAINING            =   True
 
 NUMBER_EPISODES     =   500000
 EPISODE_MAX_LEN     =   10000
 
 GAMMA               =   0.99
-LEARNING_RATE_P     =	1e-4
+LEARNING_RATE_P     =	1e-3
 LEARNING_RATE_V     =   1e-3
 
 ## Define Actor critic network by MLP 
@@ -60,6 +60,8 @@ def ActorCritic(env:gym.Env):
     optimizer   =   optim.Adam([{'params':policynet.parameters(), 'lr':LEARNING_RATE_P},
                                 {'params':valuenet.parameters(), 'lr': LEARNING_RATE_V}])
 
+    print('Optimizer:\n', optimizer)
+    plotting_rw     =   list()
     for episode in range(1, NUMBER_EPISODES + 1):
         ob      =   env.reset()
         cum_rw  =   0
@@ -69,7 +71,6 @@ def ActorCritic(env:gym.Env):
         I       =   1
 
         list_reward     =   deque([], maxlen=100)
-        plotting_rw     =   list()
         while not done:
             probs   =   policynet(torch.tensor(ob, dtype=torch.float32, device=device))
             with torch.no_grad():
@@ -82,9 +83,10 @@ def ActorCritic(env:gym.Env):
             v_expected  =   valuenet(torch.tensor(ob, dtype=torch.float32, device=device))
             deltav      =   rw - v_expected + GAMMA * v_target * (1 - done)
 
-            lossv       =   deltav
+            #lossv       =   deltav.detach() * v_expected
+            lossv       =   deltav * deltav
 
-            lossp       =   -I * deltav.detach().item() * torch.log(probs[action])
+            lossp       =   -I * deltav.detach() * torch.log(probs[action])
 
             loss        =   lossv + lossp
 
@@ -107,7 +109,7 @@ def ActorCritic(env:gym.Env):
             #data_epsiode.append(Transition(ob, action, rw, obnew, done))
         cum_rw = 0
 
-        if (episode + 1)%500 == 0:
+        if episode %500 == 0:
             # Saving network
             print('**Saving weights of Network and Rewards**')
             torch.save(policynet.state_dict(), ID_EXECUTION + 'POLICYNET-model.pth')

@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Categorical
-#from collections import deque
+from collections import deque
 import pickle
 
 ID_EXECUTION        =   'XS003-AC'
@@ -52,6 +52,7 @@ def ActorCritic(env:gym.Env):
     policynet   =   PolicyNetwork(space_obs, set_actions.n).to(device)
     valuenet    =   ValueNetwork(space_obs).to(device)
 
+    print('Device: >', device)
     print('Policy Network:\n', policynet)
     print('Value Network:\n', valuenet)
 
@@ -66,6 +67,9 @@ def ActorCritic(env:gym.Env):
         done    =   False
 
         I       =   1
+
+        list_reward     =   deque([], maxlen=100)
+        plotting_rw     =   list()
         while not done:
             probs   =   policynet(torch.tensor(ob, dtype=torch.float32, device=device))
             with torch.no_grad():
@@ -76,7 +80,7 @@ def ActorCritic(env:gym.Env):
 
             v_target    =   valuenet(torch.tensor(obnew, dtype=torch.float32, device=device)).detach()
             v_expected  =   valuenet(torch.tensor(ob, dtype=torch.float32, device=device))
-            deltav      =   rw - v_expected + (GAMMA * v_target) if not done else 0
+            deltav      =   rw - v_expected + GAMMA * v_target * (1 - done)
 
             lossv       =   deltav
 
@@ -90,6 +94,45 @@ def ActorCritic(env:gym.Env):
 
             I           =   I * GAMMA
             ob          =   obnew
+            cum_rw      =   cum_rw + rw
+
+        #print('{} Episode\t-->\ttotal reward>\t{}'.format(episode, cum_rw))
+
+        list_reward.append(cum_rw)
+        # Got the probability of acion chosen
+        if episode % 100 == 0:
+            meanrw = sum(list_reward)/len(list_reward)
+            print('[{} Episode]\t-->\treward> {}\t'.format(episode, meanrw))
+            plotting_rw.append(meanrw)
+            #data_epsiode.append(Transition(ob, action, rw, obnew, done))
+        cum_rw = 0
+
+        if (episode + 1)%500 == 0:
+            # Saving network
+            print('**Saving weights of Network and Rewards**')
+            torch.save(policynet.state_dict(), ID_EXECUTION + 'POLICYNET-model.pth')
+            torch.save(valuenet.state_dict(), ID_EXECUTION + 'VALUENET-model.pth')
+            # Saving List reward
+            file    =   open(ID_EXECUTION+'-rw.pckl', 'wb')
+            pickle.dump(plotting_rw, file)
+            file.close()
+            del(file)
+
+    # End of training, save parameters
+    torch.save(policynet.state_dict(), ID_EXECUTION + 'POLICYNET-model.pth')
+    torch.save(valuenet.state_dict(), ID_EXECUTION + 'VALUENET-model.pth')
+    file    =   open(ID_EXECUTION+'-rw.pckl', 'wb')
+    pickle.dump(plotting_rw, file)
+    file.close()
+    del(file)
 
 
+env =   gym.make('CartPole-v0')
+if TRAINING==True:
+    ActorCritic(env)
+
+else:
+    pass
+
+env.close()
 

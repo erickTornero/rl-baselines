@@ -11,7 +11,7 @@ from torch.distributions import Categorical
 from collections import deque
 import pickle
 
-ID_EXECUTION        =   'XS001-AC'
+ID_EXECUTION        =   'XS002-AC'
 TRAINING            =   True
 
 NUMBER_EPISODES     =   500000
@@ -129,12 +129,40 @@ def ActorCritic(env:gym.Env):
     del(file)
 
 
-env =   gym.make('CartPole-v0')
+def play(env:gym.Env, n_episodes:int):
+    set_actions =   env.action_space
+    obs_space   =   env.observation_space.shape[0]
+
+    device      =   torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    policynet   =   PolicyNetwork(obs_space, set_actions.n).to(device)
+    #valuenet    =   ValueNetwork(obs_space).to(device)
+
+    policynet.load_state_dict(torch.load(ID_EXECUTION+'POLICYNET-model.pth'))
+    #valuenet.load_state_dict(torch.load(ID_EXECUTION+'VALUENET-model.pth'))
+
+    for ep in range(1, n_episodes + 1):
+        ob      =   env.reset()
+        cum_rw  =   0
+        done    =   False
+        while not done:
+            env.render()
+            with torch.no_grad():
+                probs   =   policynet(torch.tensor(ob, dtype=torch.float32, device=device))
+                dist    =   Categorical(probs)
+                action  =   dist.sample().item()
+
+            ob, rw, done, _ =   env.step(action)
+            cum_rw      =   cum_rw + rw
+        
+        print('{} Episode\t-->\tTotal reward\t{}'.format(ep, cum_rw))
+
+
+env =   gym.make('CartPole-v1')
 if TRAINING==True:
     ActorCritic(env)
 
 else:
-    pass
+    play(env, 10)
 
 env.close()
 

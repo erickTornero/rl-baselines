@@ -33,3 +33,11 @@ class SaveUtils:
     def save_cfg(self, name_file: str):
         path = self.get_absolute_path(name_file)
         OmegaConf.save(self.cfg, path)
+
+    @property
+    def working_dir(self) -> str:
+        return self.cfg.project_folder
+
+    def save_cmd(self, name_file: str, text: str):
+        with open(self.get_absolute_path(name_file), "w") as f:
+            f.write(text)

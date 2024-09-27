@@ -34,3 +34,9 @@ system:
 
 trainer:
   max_episodes: 1000
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "Episode Reward"
+  every_n_epochs: 10

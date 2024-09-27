@@ -18,7 +18,9 @@ from .action_sampler import CategoricalSampler
 from .losses import ReinforceLoss
 import pytorch_lightning as pl
 import cv2
+import rl_baselines
 
+@rl_baselines.register("reinforce-discrete")
 class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
     def __init__(
         self,

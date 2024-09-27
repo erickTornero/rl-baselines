@@ -6,8 +6,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.callbacks import ModelCheckpoint
-from rl_baselines.data.dummy_data import DummyRLDataModule
-from rl_baselines.policy_gradient.reinforce_discrete import ReinforceDiscreteSystem
+import rl_baselines
 
 if __name__ == "__main__":
     import argparse
@@ -24,9 +23,8 @@ if __name__ == "__main__":
     config = OmegaConf.load(args.config)
     config = OmegaConf.merge(config, OmegaConf.from_cli(extras))
 
-    # TODO: improve this
-    system_class = ReinforceDiscreteSystem if config.system.type == 'reinforce-discrete' else None
-    data_class = DummyRLDataModule if config.system.type == 'reinforce-discrete' else None
+    system_class = rl_baselines.find(config.system.type)
+    data_class = rl_baselines.find(config.data.type)
 
     model = system_class.from_config(config)
     dm = data_class(config)

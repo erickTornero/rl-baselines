@@ -5,6 +5,8 @@ import math
 from typing import Iterator
 from torch.utils.data import DataLoader, IterableDataset
 import pytorch_lightning as pl
+import rl_baselines
+
 class DummyIterativeRLDataset(IterableDataset):
     def __init__(
         self,
@@ -27,7 +29,7 @@ class DummyIterativeRLDataset(IterableDataset):
         #    iter_start = worker_id * per_worker
         #    iter_end = min(iter_start + per_worker, self.total_episodes)
         #return iter(range(iter_start, iter_end))
-
+@rl_baselines.register("dummy-rl-datamodule")
 class DummyRLDataModule(pl.LightningDataModule):
     def __init__(self, cfg: OmegaConf) -> None:
         super().__init__()

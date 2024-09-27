@@ -3,6 +3,7 @@ exp_root_dir: "outputs/reinforce-discrete"
 seed: -1
 
 data:
+  type: "dummy-rl-datamodule"
   batch_size: 32
   max_trajectory_length: 1000
 

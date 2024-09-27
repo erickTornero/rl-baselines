@@ -168,8 +168,7 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
         else:
             cfg = config
         type_network = cfg.system.network.type
-        name_env = cfg.system.environment.pop('name')
-        env = make_custom_envs(name_env, **cfg.system.environment)
+        env = make_custom_envs(**cfg.system.environment)
 
         if type_network == "mlp":
             

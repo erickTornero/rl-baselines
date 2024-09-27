@@ -1,4 +1,6 @@
 import sys
+from os.path import relpath
+import os
 from omegaconf import OmegaConf
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
@@ -38,13 +40,14 @@ if __name__ == "__main__":
                 name="csv_logs"
             )
         ]
-        callbacks += [
-            ModelCheckpoint(
+        ckpt_callback = ModelCheckpoint(
                 dirpath=model.get_absolute_path("ckpts"),
                 filename="{epoch:02d}-{Episode Reward:.2f}",
                 mode='max',
                 **config.checkpoint
-            ),
+            )
+        callbacks += [
+            ckpt_callback,
         ]
         rank_zero_only(
             lambda: model.save_cmd(
@@ -58,16 +61,19 @@ if __name__ == "__main__":
 
     if args.resume:
         model.load(args.resume)
-    max_epochs = config.trainer.pop('max_episodes')
-    config.trainer.max_epochs = max_epochs
+    elif args.test and 'best_ckpt' in config and os.path.exists(config.best_ckpt):
+        model.load(config.best_ckpt)
 
     trainer = pl.Trainer(
+        max_epochs=config.trainer.max_episodes,
         callbacks=callbacks,
-        **config.trainer,
         logger=logger
     )
     if args.train:
         trainer.fit(model, dm)
+        best_ckpt = relpath(ckpt_callback.best_model_path)
+        config.best_ckpt = best_ckpt
+        model.save_cfg("parsed.yaml")
     elif args.test:
         model.test_rollout(save_video=args.save_video)
     else:

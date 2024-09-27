@@ -2,16 +2,16 @@ import rl_baselines.environments as cenvs
 from torchrl.envs import EnvBase
 from torchrl.data import OneHotDiscreteTensorSpec, BoundedTensorSpec
 def make_custom_envs(
-    env_name: str,
+    name: str,
     *args,
     **kwargs,
 ) -> EnvBase:
     try:
-        env_class = getattr(cenvs, env_name)
+        env_class = getattr(cenvs, name)
         return env_class(*args, **kwargs)
     except:
         from torchrl import envs
-        return envs.GymEnv(env_name, *args, **kwargs)
+        return envs.GymEnv(name, *args, **kwargs)
     
 
 def get_env_action_dim(

@@ -101,12 +101,22 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
     def validation_step(self, batch):
         pass
 
-    def test_rollout(self):
+    def test_rollout(self, save_video: bool=False):
         obs_dict = self.env.reset()
         render = self.env._env.render_mode == 'rgb_array'
         if render:
             img = self.env.render()
             self.display_img(img)
+            if save_video:
+                video = cv2.VideoWriter(
+                    self.get_absolute_path('output.mp4'),
+                    cv2.VideoWriter_fourcc(*'mp4v'),
+                    125,
+                    (img.shape[1], img.shape[0]),
+                    #False
+                )
+                video.write(img)
+                #frames.append(img)
         trajectory = []
         crw = 0
         max_episode_steps = self.cfg.data.max_trajectory_length
@@ -123,11 +133,17 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
             if render:
                 img = self.env.render()
                 self.display_img(img)
+                if save_video:
+                    #frames.append(img)
+                    video.write(img)
             pbar.update(1)
             #import pdb;pdb.set_trace()
             if done.item():
                 break
         pbar.close()
+        if save_video:
+            video.release()
+
         print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
 
     def display_img(self, img):

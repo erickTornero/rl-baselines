@@ -12,6 +12,8 @@ if __name__ == "__main__":
     parser.add_argument("--train", dest="train", action='store_true', default=False)
     parser.add_argument("--test", dest="test", action='store_true', default=False)
     parser.add_argument("--resume", dest="resume", type=str, default=None, required=False)
+    parser.add_argument("--save-video", dest="save_video", action='store_true', default=False)
+
 
     args, extras = parser.parse_known_args()
 
@@ -41,7 +43,7 @@ if __name__ == "__main__":
     if args.train:
         trainer.fit(model, dm)
     elif args.test:
-        model.test_rollout()
+        model.test_rollout(save_video=args.save_video)
     else:
         raise NotImplementedError("")
 

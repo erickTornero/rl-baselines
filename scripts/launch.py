@@ -41,7 +41,7 @@ if __name__ == "__main__":
     if args.train:
         trainer.fit(model, dm)
     elif args.test:
-        trainer.test(model, dm)
+        model.test_rollout()
     else:
         raise NotImplementedError("")
 

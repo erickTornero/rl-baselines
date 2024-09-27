@@ -24,8 +24,7 @@ system:
 
   environment:
     name: "CustomCartPoleV0"
-
-
+    render: False
 
   optimizer:
     name: Adam

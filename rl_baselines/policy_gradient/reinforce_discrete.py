@@ -5,6 +5,7 @@ import torch
 from torch import nn, optim
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
+from tqdm import tqdm
 from rl_baselines.common import (
     mlp_builder, 
     make_custom_envs, 
@@ -16,6 +17,7 @@ from torchrl.envs import EnvBase
 from .action_sampler import CategoricalSampler
 from .losses import ReinforceLoss
 import pytorch_lightning as pl
+import cv2
 
 class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
     def __init__(
@@ -57,7 +59,7 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
         optimizer = self.optimizers()
         with torch.no_grad():
             episode_data = self.env.rollout(
-                self.cfg.data.max_trajectory_length, 
+                self.cfg.data.max_trajectory_length,
                 policy=self.policy_reinforce,
                 auto_cast_to_device=True
             )
@@ -99,6 +101,38 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
     def validation_step(self, batch):
         pass
 
+    def test_rollout(self):
+        obs_dict = self.env.reset()
+        render = self.env._env.render_mode == 'rgb_array'
+        if render:
+            img = self.env.render()
+            self.display_img(img)
+        trajectory = []
+        crw = 0
+        max_episode_steps = self.cfg.data.max_trajectory_length
+        pbar = tqdm(total=max_episode_steps)
+        for istep in range(max_episode_steps):
+            with torch.no_grad():
+                action_dict = self.policy_reinforce(obs_dict)
+            next_dict = self.env.step(action_dict)
+            trajectory.append(next_dict)
+            obs_dict = next_dict['next'].clone()
+            reward = obs_dict.pop('reward')
+            crw += reward
+            done = next_dict['next', 'done']
+            if render:
+                img = self.env.render()
+                self.display_img(img)
+            pbar.update(1)
+            #import pdb;pdb.set_trace()
+            if done.item():
+                break
+        pbar.close()
+        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
+
+    def display_img(self, img):
+        cv2.imshow(f'Reinforce Discrete', img)
+        k = cv2.waitKey(1)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer
@@ -118,7 +152,8 @@ class ReinforceDiscreteSystem(pl.LightningModule, SaveUtils):
         else:
             cfg = config
         type_network = cfg.system.network.type
-        env = make_custom_envs(cfg.system.environment.name)
+        name_env = cfg.system.environment.pop('name')
+        env = make_custom_envs(name_env, **cfg.system.environment)
 
         if type_network == "mlp":
             

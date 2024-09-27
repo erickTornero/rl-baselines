@@ -46,7 +46,8 @@ class CustomCartPoleV0(EnvBase):
         self,
         td_params=None,
         seed=None,
-        device="cpu"
+        device="cpu",
+        render: bool=False
     ):
         if td_params is None:
             td_params = self.gen_params()
@@ -56,7 +57,11 @@ class CustomCartPoleV0(EnvBase):
         if seed is None:
             seed = torch.empty((), dtype=torch.int64).random_().item()
         self.set_seed(seed)
-        self._env = gymnasium.make('CartPole-v0')
+        if render:
+            args_dict = {'render_mode': 'rgb_array'}
+        else:
+            args_dict = {}
+        self._env = gymnasium.make('CartPole-v0', **args_dict)
 
         self.action_spec =  OneHotDiscreteTensorSpec(2, shape=(2, ), device=device, dtype=torch.int64,)
 
@@ -121,3 +126,6 @@ class CustomCartPoleV0(EnvBase):
             }
         )
         return out
+
+    def render(self):
+        return self._env.render()

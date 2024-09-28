@@ -1,0 +1,52 @@
+name: "reinforce-discrete-baseline"
+exp_root_dir: "outputs/reinforce-discrete-baseline"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 32
+  max_trajectory_length: 1000
+
+system:
+  type: "reinforce-discrete-baseline"
+  gamma: 0.99
+  policy_network:
+    type: "mlp"
+    args:
+      hidden_dim: 64
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info:
+        type: Softmax
+        kwargs:
+          dim: -1
+  baseline_network:
+    type: "mlp"
+    args:
+      hidden_dim: 64
+      n_hidden: 1
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info: null
+
+  environment:
+    name: "CustomCartPoleV0"
+    render: False
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.00012207
+      betas: [0.9, 0.99]
+
+trainer:
+  max_episodes: 1000
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "Episode Reward"
+  every_n_epochs: 10

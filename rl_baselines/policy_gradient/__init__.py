@@ -1,1 +1,2 @@
 from .reinforce_discrete import ReinforceDiscreteSystem
+from .reinforce_discrete_baseline import ReinforceWithBaselineLoss

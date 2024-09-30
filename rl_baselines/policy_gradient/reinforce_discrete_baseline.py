@@ -178,7 +178,7 @@ class ReinforceDiscreteBaselineSystem(pl.LightningModule, SaveUtils):
         self.load_state_dict(ckpt['state_dict'])
 
     @classmethod
-    def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceDiscreteSystem:
+    def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceDiscreteBaselineSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:

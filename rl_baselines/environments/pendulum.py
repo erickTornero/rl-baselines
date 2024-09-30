@@ -102,7 +102,7 @@ class CustomPendulumV1(EnvBase):
         if tensordict is None or tensordict.is_empty():
             tensordict = self.gen_params(self.batch_size)
         obs, _ = self._env.reset()
-        return TensorDict({'observation': obs}, batch_size=batch_size)
+        return TensorDict({'observation': obs}, batch_size=batch_size).to(self.device)
 
     def _step(self, tensordict):
         action = tensordict.get('action')
@@ -127,7 +127,7 @@ class CustomPendulumV1(EnvBase):
                 'reward': rw,
                 'done': done
             }
-        )
+        ).to(self.device)
         return out
     
     def render(self):

@@ -69,9 +69,10 @@ if __name__ == "__main__":
     )
     if args.train:
         trainer.fit(model, dm)
-        best_ckpt = relpath(ckpt_callback.best_model_path)
-        config.best_ckpt = best_ckpt
-        model.save_cfg("parsed.yaml")
+        if ckpt_callback.best_model_path is not None:
+            best_ckpt = relpath(ckpt_callback.best_model_path)
+            config.best_ckpt = best_ckpt
+            model.save_cfg("parsed.yaml")
     elif args.test:
         model.test_rollout(save_video=args.save_video)
     else:

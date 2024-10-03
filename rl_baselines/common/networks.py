@@ -1,5 +1,6 @@
-from typing import Optional, Dict, Union
+from typing import Any, Callable, Optional, Dict, Union
 import torch.nn as nn
+import torch
 from dataclasses import dataclass
 
 @dataclass
@@ -7,12 +8,30 @@ class ActivationType:
     type: str
     kwargs: Optional[Dict[str, int]]=None
 
+class Exp(nn.Module):
+    def __call__(self, x: torch.Tensor) -> Any:
+        return torch.exp(x)
 
-def find_nn_module(name: str, **kwargs) -> nn.Module:
+class NoNegELU(nn.Module):
+    #def __init__(self) -> None:
+    #    self.epsilon = 1e-6
+    def __call__(self, x: torch.Tensor) -> Any:
+        if x >= 0:
+            return x + 1
+        else:
+            return torch.exp(x) + 1e-6#self.epsilon
+
+
+def find_nn_module(name: str, **kwargs) -> Callable[[], nn.Module]:
     try:
         module = getattr(nn, name)
     except:
-        raise ModuleNotFoundError(f"Module <{name}> not found in torch.nn>")
+        if name == 'Exp':
+            module = Exp
+        elif name == 'NoNegELU':
+            module = NoNegELU
+        else:
+            raise ModuleNotFoundError(f"Module <{name}> not found in torch.nn>")
     return module
 
 def mlp_builder(

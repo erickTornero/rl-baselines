@@ -1,0 +1,53 @@
+name: "reinforce-continuous"
+exp_root_dir: "outputs/reinforce-continuous"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 32
+  max_trajectory_length: 1000
+
+system:
+  type: "reinforce-continuous"
+  gamma: 1.0
+  mean_network:
+    type: "mlp"
+    args:
+      hidden_dim: 64
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info: null
+  std_network:
+    type: "mlp"
+    args:
+      hidden_dim: 64
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info:
+        type: Exp
+        kwargs: null
+
+  environment:
+    name: "CustomMountainCarContiuous"
+    render: False
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.0001
+      betas: [0.9, 0.999]
+
+trainer:
+  max_episodes: 1000
+  epochs_per_episode: 3
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "Episode Reward"
+  every_n_epochs: 10
+  #average_last_k_episodes: 10 # average last episodes

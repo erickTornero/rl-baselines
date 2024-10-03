@@ -1,3 +1,5 @@
 from .reinforce_discrete import ReinforceDiscreteSystem
 from .reinforce_discrete_baseline import ReinforceWithBaselineLoss
 from .reinforce_discrete_ac import ReinforceDiscreteActorCriticSystem
+from .reinforce_continuous import ReinforceContinuousSystem
+from .reinforce_continous2 import ReinforceContinuousLogVarSystem

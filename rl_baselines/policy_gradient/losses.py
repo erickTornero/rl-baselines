@@ -87,6 +87,24 @@ class ReinforceContinuousLoss:
         J = - gammm_t * log_p_action * G
         return J#.mean()
 
+class ReinforceContinuousWithBaselineLoss(ReinforceContinuousLoss):
+    def __init__(self, gamma: float) -> None:
+        super().__init__(gamma)
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor,
+        std_action: torch.Tensor,
+        baseline: torch.Tensor,
+        action: torch.Tensor,
+        delta: torch.Tensor,
+        t: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        reinforce_loss = super().__call__(mean_action, std_action, action, delta, t)
+        baseline_loss = -self.gamma * baseline
+
+        return (reinforce_loss, baseline_loss)
+
 from rl_baselines.common.distributions import NormalLogVar
 class ReinforceContinuousLogVarLoss:
     def __call__(

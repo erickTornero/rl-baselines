@@ -2,7 +2,7 @@
 # Based on Karphaty implementation
 # Pytorch
 
-import gym
+import gymnasium as gym
 import numpy as np
 import random
 import torch
@@ -34,7 +34,7 @@ def prepro(I):
   I[I == 144] = 0 # erase background (background type 1)
   I[I == 109] = 0 # erase background (background type 2)
   I[I != 0] = 1 # everything else (paddles, ball) just set to 1
-  return I.astype(np.float).ravel()
+  return I.astype(np.float32).ravel()
 
 
 class SimpleMLP(nn.Module):
@@ -67,7 +67,7 @@ def reinforce(env:gym.Env):
     samplerU        =   uniform.Uniform(0.0, 1.0)
 
     for episode in range(NUMBER_EPISODES):
-        ob              =   env.reset() 
+        ob, _              =   env.reset() 
         cum_rw          =   0
         data_epsiode    =   list()
         
@@ -92,7 +92,7 @@ def reinforce(env:gym.Env):
                 distribution_S  =   Categorical(probs_policy)
                 action          =   distribution_S.sample().item()
 
-            obnew, rw, done, _  =   env.step(action+2)
+            obnew, rw, done, _, _  =   env.step(action+2)
             # T-1
 
             states_list.append(x_st)
@@ -117,7 +117,7 @@ def reinforce(env:gym.Env):
         ## Pass to device necessary tensors
         rewards_torch   =   torch.from_numpy(G).to(device)
         rewards_torch   =   (rewards_torch - rewards_torch.mean())/rewards_torch.std()
-        states_torch    =   torch.from_numpy(np.vstack([st] for st in states_list)).float().to(device)
+        states_torch    =   torch.from_numpy(np.vstack([[st] for st in states_list])).to(device, dtype=torch.float32)
         gamma_torch     =   GAMMA ** torch.arange(n_steps, dtype=torch.float32, device=device)
         actions_torch   =   torch.from_numpy(np.asarray(action_list)).long().to(device)
 

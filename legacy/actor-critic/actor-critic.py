@@ -1,6 +1,6 @@
 # Implementation of Actor-Critic algorithm:
 # Based on the proposal of Richard Sutton, pag. 332
-import gym
+import gymnasium as gym
 import numpy as np
 import random
 import torch
@@ -16,6 +16,7 @@ TRAINING            =   True
 
 NUMBER_EPISODES     =   500000
 EPISODE_MAX_LEN     =   10000
+MAX_PATH_LEN        =   1000
 
 GAMMA               =   0.99
 LEARNING_RATE_P     =	1e-3
@@ -63,7 +64,7 @@ def ActorCritic(env:gym.Env):
     print('Optimizer:\n', optimizer)
     plotting_rw     =   list()
     for episode in range(1, NUMBER_EPISODES + 1):
-        ob      =   env.reset()
+        ob, _      =   env.reset()
         cum_rw  =   0
 
         done    =   False
@@ -71,13 +72,14 @@ def ActorCritic(env:gym.Env):
         I       =   1
 
         list_reward     =   deque([], maxlen=100)
-        while not done:
+        steps = 0
+        while not done and steps < MAX_PATH_LEN:
             probs   =   policynet(torch.tensor(ob, dtype=torch.float32, device=device))
             with torch.no_grad():
                 distr   =   Categorical(probs)
                 action  =   distr.sample().item()
             
-            obnew, rw, done, _  =   env.step(action)
+            obnew, rw, done, _, _  =   env.step(np.int64(action))
 
             v_target    =   valuenet(torch.tensor(obnew, dtype=torch.float32, device=device)).detach()
             v_expected  =   valuenet(torch.tensor(ob, dtype=torch.float32, device=device))
@@ -97,6 +99,7 @@ def ActorCritic(env:gym.Env):
             I           =   I * GAMMA
             ob          =   obnew
             cum_rw      =   cum_rw + rw
+            steps       +=  1
 
         #print('{} Episode\t-->\ttotal reward>\t{}'.format(episode, cum_rw))
 
@@ -141,7 +144,7 @@ def play(env:gym.Env, n_episodes:int):
     #valuenet.load_state_dict(torch.load(ID_EXECUTION+'VALUENET-model.pth'))
 
     for ep in range(1, n_episodes + 1):
-        ob      =   env.reset()
+        ob, _      =   env.reset()
         cum_rw  =   0
         done    =   False
         while not done:
@@ -151,7 +154,7 @@ def play(env:gym.Env, n_episodes:int):
                 dist    =   Categorical(probs)
                 action  =   dist.sample().item()
 
-            ob, rw, done, _ =   env.step(action)
+            ob, rw, done, _, _ =   env.step(action)
             cum_rw      =   cum_rw + rw
         
         print('{} Episode\t-->\tTotal reward\t{}'.format(ep, cum_rw))

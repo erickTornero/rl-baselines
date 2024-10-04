@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import random
 # Deque to memory replay
 from collections import deque
@@ -137,7 +137,7 @@ def train_dqn(env):
 
     for episode in range(NUMBER_EPISODES):
         statehandler    =   Observations()
-        ob              =   env.reset()
+        ob, _           =   env.reset()
         ob              =   preprocessing(ob)
         xin             =   statehandler.PushAndGet(ob)  
         cum_rw          =   0
@@ -153,7 +153,7 @@ def train_dqn(env):
                     qvalues =   dqn(torch.tensor(xin, dtype=torch.float32, device=device).unsqueeze(0))
                     action  =   qvalues.argmax().item()
 
-                ob, rw, done, _     =   env.step(action)
+                ob, rw, done, _, _  =   env.step(action)
                 ob                  =   preprocessing(ob)
                 xnew                =   statehandler.PushAndGet(ob)
                 
@@ -214,7 +214,7 @@ def train_dqn(env):
                 
                 #print(e_greed)
             else:
-                ob, rw, done, _ = env.step(action)
+                ob, rw, done, _, _ = env.step(action)
 
             cum_rw = cum_rw + rw
             if done:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from email import message
 from typing import Union, List, Optional
 from omegaconf import OmegaConf
 import torch
@@ -7,13 +8,16 @@ from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from tqdm import tqdm
 from rl_baselines.common import (
-    mlp_builder, 
-    make_custom_envs, 
-    get_env_obs_dim, 
-    get_env_action_dim
+    mlp_builder,
+    make_custom_envs,
+    get_env_obs_dim,
+    get_env_action_dim,
+    parse_env_cfg,
+    init_env_stats
 )
+from rl_baselines.common.custom_envs import parse_env_cfg
 from rl_baselines.utils.save_utils import SaveUtils
-from torchrl.envs import EnvBase
+from torchrl.envs import EnvBase, TransformedEnv, Compose
 from .action_sampler import ContinuousSampler
 from .losses import ReinforceContinuousWithBaselineLoss
 import pytorch_lightning as pl
@@ -74,7 +78,6 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
 
     def on_fit_start(self) -> None:
         self.env = self.env.to(self.device)
-
 
     def forward(self, batch) -> TensorDict :
         raise NotImplementedError("")
@@ -233,15 +236,34 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
     def load(self, path: str):
         ckpt = torch.load(path, map_location='cpu')
         print(f'Loading state dict from {path}')
-        self.load_state_dict(ckpt['state_dict'])
+        # TODO: added strict=False since environment stats is not loaded properly
+        # the loader tries to load from env.transform and env._transform, the last one raises missing keys
+        messages = self.load_state_dict(ckpt['state_dict'], strict=False)
+        # a simple patch to properly load stats
+        self.load_env_stats_patch(ckpt)
+        if len(messages.missing_keys) > 0:
+            print('-'*20 + "\nMissing keys in checkpoint\n-" + '\n-'.join(messages.missing_keys))
+            print('Make sure it belongs only to base environments otherwise it may inccur in an error\n')
+        if len(messages.unexpected_keys) > 0:
+            print('Unexpected keys in checkpoint\n-' + '\n-'.join(messages.unexpected_keys) + '\n' + '-'*20)
+
+    def load_env_stats_patch(self, ckpt):
+        env_state_dict = {}
+        for name in ckpt['state_dict'].keys():
+            if name.find('env.') == 0:
+                env_state_dict[name.replace('env.', '')] = ckpt['state_dict'][name]
+
+        if len(env_state_dict) > 0:
+            self.env.load_state_dict(env_state_dict)
 
     @classmethod
-    def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceContinuousSystem:
+    def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceContinuousWithBaselineSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:
             cfg = config
-        env = make_custom_envs(**cfg.system.environment)
+        env = parse_env_cfg(**cfg.system.environment)
+        init_env_stats(env)
 
         if cfg.system.mean_network.type == "mlp":
             

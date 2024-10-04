@@ -43,6 +43,10 @@ system:
   environment:
     name: "CustomMountainCarContiuous"
     render: False
+    transforms:
+      DoubleToFloat:
+      ObservationNorm:
+        in_keys: ['observation']
 
   optimizer:
     name: Adam

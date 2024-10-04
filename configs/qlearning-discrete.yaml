@@ -1,0 +1,46 @@
+name: "qlearning-discrete"
+exp_root_dir: "outputs/qlearning-discrete"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 32
+  max_trajectory_length: 1000
+  replay_buffer_size: 10000
+  min_replay_buffer_size: 100
+
+system:
+  type: "qlearning-discrete"
+  gamma: 0.99
+  egreedy:
+    epsilon_init: 1.0
+    epsilon_end: 0.1
+    annealing_steps: 1000
+  network:
+    type: "mlp"
+    args:
+      hidden_dim: 64
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info: null
+
+  environment:
+    name: "CartPole-v1"
+    render: False
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.00012207
+      betas: [0.9, 0.99]
+
+trainer:
+  max_episodes: 1000
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "Episode Reward"
+  every_n_epochs: 10

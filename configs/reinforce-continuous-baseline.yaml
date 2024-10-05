@@ -1,5 +1,5 @@
 name: "reinforce-continuous-baseline"
-exp_root_dir: "outputs/reinforce-continuous-baseline"
+exp_root_dir: "outputs/${system.environment.name}/reinforce-continuous-baseline"
 seed: -1
 
 data:

@@ -1,33 +1,23 @@
 from __future__ import annotations
-from email import message
-from typing import Union, List, Optional
+from typing import Union
 from omegaconf import OmegaConf
 import torch
 from torch import nn, optim
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from tqdm import tqdm
 from rl_baselines.common import (
-    mlp_builder,
-    make_custom_envs,
     get_env_obs_dim,
     get_env_action_dim,
-    parse_env_cfg,
-    init_env_stats
 )
-from rl_baselines.common.custom_envs import parse_env_cfg
-from rl_baselines.utils.save_utils import SaveUtils
-from torchrl.envs import EnvBase, TransformedEnv, Compose
 from .action_sampler import ContinuousSampler
 from .losses import ReinforceContinuousWithBaselineLoss
-import pytorch_lightning as pl
-import cv2
 import rl_baselines
-from torchrl.data import BoundedTensorSpec, ReplayBuffer, LazyTensorStorage
-from collections import deque
+from torchrl.data import ReplayBuffer, LazyTensorStorage
+from rl_baselines.systems.base import RLBaseSystem
+from torchrl.envs import EnvBase
 
 @rl_baselines.register("reinforce-continuous-baseline")
-class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
+class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
     def __init__(
         self,
         cfg: OmegaConf,
@@ -36,8 +26,7 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
         baseline_network: Union[nn.Sequential, nn.Module],
         environment: EnvBase,
     ) -> None:
-        pl.LightningModule.__init__(self)
-        SaveUtils.__init__(self, cfg)
+        RLBaseSystem.__init__(self, cfg, environment)
         self.mean_module = TensorDictModule(
             mean_network,
             in_keys=['observation'],
@@ -72,12 +61,7 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
             in_keys=['mean_action', 'std_action', 'baseline', 'action', 'delta', 't'],
             out_keys=['pg_loss', 'baseline_loss']
         )
-        self.env = environment
-        self.automatic_optimization = False
-        self.cum_rewards = deque(maxlen=10)#cfg.checkpoint.average_last_k_episodes)
 
-    def on_fit_start(self) -> None:
-        self.env = self.env.to(self.device)
 
     def forward(self, batch) -> TensorDict :
         raise NotImplementedError("")
@@ -159,68 +143,12 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
         ##     optimizer.zero_grad()
         ##     self.manual_backward(J.get('pg_loss'))
         ##     optimizer.step()
-        self.log_dict(
+        self.log_dict_with_envname(
             {
                 "Episode Reward": cum_rw,
                 "Avg Episode Reward": avg_rw,
-            }, 
-            prog_bar=True, 
-            on_epoch=True, 
-            on_step=False,
-            batch_size=1
+            }
         )
-
-    def validation_step(self, batch):
-        pass
-
-    def test_rollout(self, save_video: bool=False):
-        obs_dict = self.env.reset()
-        render = self.env._env.render_mode == 'rgb_array'
-        if render:
-            img = self.env.render()
-            self.display_img(img)
-            if save_video:
-                video = cv2.VideoWriter(
-                    self.get_absolute_path('output.mp4'),
-                    cv2.VideoWriter_fourcc(*'mp4v'),
-                    125,
-                    (img.shape[1], img.shape[0]),
-                    #False
-                )
-                video.write(img)
-                #frames.append(img)
-        trajectory = []
-        crw = 0
-        max_episode_steps = self.cfg.data.max_trajectory_length
-        pbar = tqdm(total=max_episode_steps)
-        for istep in range(max_episode_steps):
-            with torch.no_grad():
-                action_dict = self.policy_reinforce(obs_dict)
-            next_dict = self.env.step(action_dict)
-            trajectory.append(next_dict)
-            obs_dict = next_dict['next'].clone()
-            reward = obs_dict.pop('reward')
-            crw += reward
-            done = next_dict['next', 'done']
-            if render:
-                img = self.env.render()
-                self.display_img(img)
-                if save_video:
-                    #frames.append(img)
-                    video.write(img)
-            pbar.update(1)
-            #import pdb;pdb.set_trace()
-            if done.item():
-                break
-        pbar.close()
-        if save_video:
-            video.release()
-
-        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
-
-    def display_img(self, img):
-        cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(1)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer
@@ -233,68 +161,29 @@ class ReinforceContinuousWithBaselineSystem(pl.LightningModule, SaveUtils):
 
         return [optimizer, optimizer_bl]
 
-    def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu')
-        print(f'Loading state dict from {path}')
-        # TODO: added strict=False since environment stats is not loaded properly
-        # the loader tries to load from env.transform and env._transform, the last one raises missing keys
-        messages = self.load_state_dict(ckpt['state_dict'], strict=False)
-        # a simple patch to properly load stats
-        self.load_env_stats_patch(ckpt)
-        if len(messages.missing_keys) > 0:
-            print('-'*20 + "\nMissing keys in checkpoint\n-" + '\n-'.join(messages.missing_keys))
-            print('Make sure it belongs only to base environments otherwise it may inccur in an error\n')
-        if len(messages.unexpected_keys) > 0:
-            print('Unexpected keys in checkpoint\n-' + '\n-'.join(messages.unexpected_keys) + '\n' + '-'*20)
-
-    def load_env_stats_patch(self, ckpt):
-        env_state_dict = {}
-        for name in ckpt['state_dict'].keys():
-            if name.find('env.') == 0:
-                env_state_dict[name.replace('env.', '')] = ckpt['state_dict'][name]
-
-        if len(env_state_dict) > 0:
-            self.env.load_state_dict(env_state_dict)
-
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceContinuousWithBaselineSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:
             cfg = config
-        env = parse_env_cfg(**cfg.system.environment)
-        init_env_stats(env)
+        env = RLBaseSystem.load_env_from_cfg(cfg.system.environment)
+        #import pdb;pdb.set_trace()
+        mean_network = RLBaseSystem.load_network_from_cfg(
+            cfg.system.mean_network,
+            input_dim=get_env_obs_dim(env),
+            output_dim=get_env_action_dim(env)
+        )
+        std_network = RLBaseSystem.load_network_from_cfg(
+            cfg.system.std_network,
+            input_dim=get_env_obs_dim(env),
+            output_dim=get_env_action_dim(env),
+        )
 
-        if cfg.system.mean_network.type == "mlp":
-            
-            mean_network = mlp_builder(
-                get_env_obs_dim(env),
-                get_env_action_dim(env),
-                **cfg.system.mean_network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {cfg.system.mean_network.type} not implemented!")
-    
-        if cfg.system.std_network.type == "mlp":
-            
-            std_network = mlp_builder(
-                get_env_obs_dim(env),
-                get_env_action_dim(env),
-                **cfg.system.std_network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {cfg.system.std_network.type} not implemented!")
-    
-        if cfg.system.baseline_network.type == "mlp":
-            
-            baseline_network = mlp_builder(
-                get_env_obs_dim(env),
-                out_dim=1,
-                **cfg.system.baseline_network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {cfg.system.baseline_network.type} not implemented!")
-    
+        baseline_network = RLBaseSystem.load_network_from_cfg(
+            cfg.system.baseline_network,
+            input_dim=get_env_obs_dim(env),
+            output_dim=1,
+        )
 
-        
         return cls(cfg, mean_network, std_network, baseline_network, env)

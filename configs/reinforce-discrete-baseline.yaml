@@ -48,5 +48,5 @@ trainer:
 checkpoint:
   save_last: true # save at each validation time
   save_top_k: 2
-  monitor: "Episode Reward"
+  monitor: "${system.environment.name}/Episode Reward"
   every_n_epochs: 10

@@ -40,8 +40,9 @@ if __name__ == "__main__":
         ]
         ckpt_callback = ModelCheckpoint(
                 dirpath=model.get_absolute_path("ckpts"),
-                filename="{epoch:02d}-{Episode Reward:.2f}",
+                filename="epoch-{epoch:02d}-Episode Reward-{" + config.system.environment.name + "/Episode Reward:.2f}",
                 mode='max',
+                auto_insert_metric_name=False,
                 **config.checkpoint
             )
         callbacks += [

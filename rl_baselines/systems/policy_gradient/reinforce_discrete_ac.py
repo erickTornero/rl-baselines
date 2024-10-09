@@ -54,7 +54,7 @@ class ReinforceDiscreteActorCriticSystem(RLBaseSystem):
                 ('next', 'observation'),
                 ('next', 'done')
             ],
-            out_keys=['delta_bellman']
+            out_keys=['delta_bellman', 'unused1', 'unused2']
         )
 
     def forward(self, batch) -> TensorDict :

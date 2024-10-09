@@ -63,11 +63,12 @@ class BellmanDelta:
         reward: torch.Tensor,
         next_observation: torch.Tensor,
         done: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 
-        value_expected = reward + self.gamma * self.state_value_network(next_observation) * (1 - done.to(dtype=torch.float32))
-        delta = value_expected - self.state_value_network(observation)
-        return delta
+        target_value = reward + self.gamma * self.state_value_network(next_observation) * (1 - done.to(dtype=torch.float32))
+        expected_value = self.state_value_network(observation)
+        delta = target_value - expected_value
+        return delta, expected_value, target_value
 
 class ReinforceContinuousLoss:
     def __init__(self, gamma: float) -> None:
@@ -101,9 +102,48 @@ class ReinforceContinuousWithBaselineLoss(ReinforceContinuousLoss):
         t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         reinforce_loss = super().__call__(mean_action, std_action, action, delta, t)
-        baseline_loss = -self.gamma * baseline
+        baseline_loss = -self.gamma * delta * baseline
 
         return (reinforce_loss, baseline_loss)
+
+class ReinforceContinuousWithActorCriticLoss(ReinforceContinuousLoss):
+    def __init__(self, gamma: float) -> None:
+        super().__init__(gamma)
+
+    def _reinforce_loss(
+        self,
+        mean_action: torch.Tensor,
+        std_action: torch.Tensor,
+        action: torch.Tensor,
+        delta: torch.Tensor,
+        gamma_cumm: torch.Tensor,
+    ) -> torch.Tensor:
+        dist = torch.distributions.Normal(mean_action, std_action)
+        log_p_action = dist.log_prob(action)
+        J = - gamma_cumm * delta * log_p_action 
+        return J
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor,
+        std_action: torch.Tensor,
+        state_value: torch.Tensor,
+        action: torch.Tensor,
+        delta: torch.Tensor,
+        gamma_cumm: torch.Tensor,
+        expected_value: torch.Tensor,
+        target_value: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        reinforce_loss = self._reinforce_loss(
+            mean_action,
+            std_action,
+            action, 
+            delta.detach(),
+            gamma_cumm
+        )
+        critic_loss = nn.MSELoss()(target_value.detach(), expected_value)
+
+        return (reinforce_loss, critic_loss)
 
 from rl_baselines.common.distributions import NormalLogVar
 class ReinforceContinuousLogVarLoss:

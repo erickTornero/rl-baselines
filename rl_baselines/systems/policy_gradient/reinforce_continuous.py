@@ -1,29 +1,23 @@
 from __future__ import annotations
-from typing import Union, List, Optional
+from typing import Union
 from omegaconf import OmegaConf
 import torch
 from torch import nn, optim
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from tqdm import tqdm
 from rl_baselines.common import (
-    mlp_builder, 
-    make_custom_envs, 
     get_env_obs_dim, 
     get_env_action_dim
 )
-from rl_baselines.utils.save_utils import SaveUtils
 from torchrl.envs import EnvBase
 from .action_sampler import ContinuousSampler
 from .losses import ReinforceContinuousLoss
-import pytorch_lightning as pl
-import cv2
 import rl_baselines
-from torchrl.data import BoundedTensorSpec, ReplayBuffer, LazyTensorStorage
-from collections import deque
+from torchrl.data import ReplayBuffer, LazyTensorStorage
+from rl_baselines.systems.base import RLBaseSystem
 
 @rl_baselines.register("reinforce-continuous")
-class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
+class ReinforceContinuousSystem(RLBaseSystem):
     def __init__(
         self,
         cfg: OmegaConf,
@@ -31,8 +25,7 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
         std_network: Union[nn.Sequential, nn.Module],
         environment: EnvBase,
     ) -> None:
-        pl.LightningModule.__init__(self)
-        SaveUtils.__init__(self, cfg)
+        RLBaseSystem.__init__(self, cfg, environment)
         self.mean_module = TensorDictModule(
             mean_network,
             in_keys=['observation'],
@@ -50,7 +43,7 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
             in_keys=['mean_action', 'std_action'],
             out_keys=['action']
         )
-        self.policy_reinforce = TensorDictSequential(
+        self.policy = TensorDictSequential(
             self.mean_module,
             self.std_module,
             self.action_sampler
@@ -60,13 +53,6 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
             in_keys=['mean_action', 'std_action', 'action', 'G', 't'],
             out_keys=['pg_loss']
         )
-        self.env = environment
-        self.automatic_optimization = False
-        self.cum_rewards = deque(maxlen=10)#cfg.checkpoint.average_last_k_episodes)
-
-    def on_fit_start(self) -> None:
-        self.env = self.env.to(self.device)
-
 
     def forward(self, batch) -> TensorDict :
         raise NotImplementedError("")
@@ -81,7 +67,7 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
         with torch.no_grad():
             episode_data = self.env.rollout(
                 max_traj_len,
-                policy=self.policy_reinforce,
+                policy=self.policy,
                 auto_cast_to_device=True
             )
         # compute Returns in linear time
@@ -115,7 +101,7 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
             tensordict = replay_buffer.sample()
             probs_dict = self.mean_module(tensordict)
             probs_dict = self.std_module(tensordict)
-            #probs_dict = self.policy_reinforce(tensordict)
+            #probs_dict = self.policy(tensordict)
             loss_dict = self.loss_module(probs_dict)
             optimizer.zero_grad()
             self.manual_backward(loss_dict.get('pg_loss').mean())
@@ -143,68 +129,12 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
         ##     optimizer.zero_grad()
         ##     self.manual_backward(J.get('pg_loss'))
         ##     optimizer.step()
-        self.log_dict(
+        self.log_dict_with_envname(
             {
                 "Episode Reward": cum_rw,
                 "Avg Episode Reward": avg_rw,
-            }, 
-            prog_bar=True, 
-            on_epoch=True, 
-            on_step=False,
-            batch_size=1
+            }
         )
-
-    def validation_step(self, batch):
-        pass
-
-    def test_rollout(self, save_video: bool=False):
-        obs_dict = self.env.reset()
-        render = self.env._env.render_mode == 'rgb_array'
-        if render:
-            img = self.env.render()
-            self.display_img(img)
-            if save_video:
-                video = cv2.VideoWriter(
-                    self.get_absolute_path('output.mp4'),
-                    cv2.VideoWriter_fourcc(*'mp4v'),
-                    125,
-                    (img.shape[1], img.shape[0]),
-                    #False
-                )
-                video.write(img)
-                #frames.append(img)
-        trajectory = []
-        crw = 0
-        max_episode_steps = self.cfg.data.max_trajectory_length
-        pbar = tqdm(total=max_episode_steps)
-        for istep in range(max_episode_steps):
-            with torch.no_grad():
-                action_dict = self.policy_reinforce(obs_dict)
-            next_dict = self.env.step(action_dict)
-            trajectory.append(next_dict)
-            obs_dict = next_dict['next'].clone()
-            reward = obs_dict.pop('reward')
-            crw += reward
-            done = next_dict['next', 'done']
-            if render:
-                img = self.env.render()
-                self.display_img(img)
-                if save_video:
-                    #frames.append(img)
-                    video.write(img)
-            pbar.update(1)
-            #import pdb;pdb.set_trace()
-            if done.item():
-                break
-        pbar.close()
-        if save_video:
-            video.release()
-
-        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
-
-    def display_img(self, img):
-        cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(1)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer
@@ -215,40 +145,25 @@ class ReinforceContinuousSystem(pl.LightningModule, SaveUtils):
         )
         return optimizer
 
-    def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu')
-        print(f'Loading state dict from {path}')
-        self.load_state_dict(ckpt['state_dict'])
-
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceContinuousSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:
             cfg = config
-        env = make_custom_envs(**cfg.system.environment)
 
-        if cfg.system.mean_network.type == "mlp":
-            
-            mean_network = mlp_builder(
-                get_env_obs_dim(env),
-                get_env_action_dim(env),
-                **cfg.system.mean_network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {cfg.system.mean_network.type} not implemented!")
-    
-        if cfg.system.std_network.type == "mlp":
-            
-            std_network = mlp_builder(
-                get_env_obs_dim(env),
-                get_env_action_dim(env),
-                **cfg.system.std_network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {cfg.system.std_network.type} not implemented!")
-    
+        env = RLBaseSystem.load_env_from_cfg(cfg.system.environment)
 
+        mean_network = RLBaseSystem.load_network_from_cfg(
+            cfg.system.mean_network,
+            input_dim=get_env_obs_dim(env),
+            output_dim=get_env_action_dim(env)
+        )
 
-        
+        std_network = RLBaseSystem.load_network_from_cfg(
+            cfg.system.std_network,
+            input_dim=get_env_obs_dim(env),
+            output_dim=get_env_action_dim(env),
+        )
+
         return cls(cfg, mean_network, std_network, env)

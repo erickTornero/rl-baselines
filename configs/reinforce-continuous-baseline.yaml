@@ -1,5 +1,5 @@
 name: "reinforce-continuous-baseline"
-exp_root_dir: "outputs/reinforce-continuous-baseline"
+exp_root_dir: "outputs/${system.environment.name}/reinforce-continuous-baseline"
 seed: -1
 
 data:
@@ -61,6 +61,6 @@ trainer:
 checkpoint:
   save_last: true # save at each validation time
   save_top_k: 2
-  monitor: "Episode Reward"
+  monitor: "${system.environment.name}/Episode Reward"
   every_n_epochs: 10
   #average_last_k_episodes: 10 # average last episodes

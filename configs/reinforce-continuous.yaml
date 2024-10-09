@@ -1,5 +1,5 @@
 name: "reinforce-continuous"
-exp_root_dir: "outputs/reinforce-continuous"
+exp_root_dir: "outputs/${system.environment.name}/${name}"
 seed: -1
 
 data:
@@ -34,6 +34,11 @@ system:
   environment:
     name: "CustomMountainCarContiuous"
     render: False
+    transforms:
+      DoubleToFloat:
+      ObservationNorm:
+        in_keys: ['observation']
+
 
   optimizer:
     name: Adam
@@ -48,6 +53,6 @@ trainer:
 checkpoint:
   save_last: true # save at each validation time
   save_top_k: 2
-  monitor: "Episode Reward"
+  monitor: "${system.environment.name}/Episode Reward"
   every_n_epochs: 10
   #average_last_k_episodes: 10 # average last episodes

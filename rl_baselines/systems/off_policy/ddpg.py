@@ -14,6 +14,7 @@ from rl_baselines.utils.weights import SoftUpdate
 from rl_baselines.common.custom_envs import get_env_action_dim, get_env_obs_dim
 from torch import optim
 from rl_baselines.utils.noise import OrnsteinUhlenbeck
+from rl_baselines.common.networks import init_final_linear_layer
 
 @rl_baselines.register("ddpg")
 class DDPGSystem(RLBaseSystem):
@@ -208,6 +209,15 @@ class DDPGSystem(RLBaseSystem):
             )
         else:
             raise NotImplementedError(f"noise process <{config.system.exploration.type}> not supported")
+
+        # initialize last layers according to the paper
+        if 'from_pixels' in config.system.environment and config.system.environment.from_pixels:
+            # for pixels case
+            amplitude_last_layer = 3e-4
+        else:
+            amplitude_last_layer = 3e-3
+        init_final_linear_layer(state_action_network, -amplitude_last_layer, amplitude_last_layer)
+        init_final_linear_layer(policy_network, -amplitude_last_layer, amplitude_last_layer)
 
         return cls(
             cfg,

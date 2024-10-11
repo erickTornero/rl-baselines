@@ -48,6 +48,7 @@ system:
   environment:
     name: "MountainCarContinuous"
     render: False
+    from_pixels: False
 
   optimizer:
     policy:

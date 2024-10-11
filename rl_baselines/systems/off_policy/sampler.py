@@ -1,6 +1,8 @@
+from __future__ import annotations
 import torch
 from torch.distributions import Categorical
 from torchrl.data import TensorSpec, OneHotDiscreteTensorSpec
+from typing import Callable, Optional, Union
 class CategoricalSampler:
     def __init__(
         self, 
@@ -17,3 +19,34 @@ class CategoricalSampler:
         # uncomment following line to allow gymenv environment
         #action = torch.nn.functional.one_hot(action, num_classes=2)
         return action
+
+class ContinuousExplorationDDPGSampler:
+    """
+        add noise to an action in continuous setting
+    """
+    def __init__(
+        self,
+        noise_process: Callable[[], torch.Tensor],
+    ):
+        self.noise_process = noise_process
+
+    def __call__(self, action_mean: torch.Tensor) -> torch.Tensor:
+        noise = self.noise_process()
+        return action_mean + noise
+
+    def reset_noise(self):
+        self.noise_process.init()
+
+
+class ActionContinuousClamper:
+    def __init__(
+        self,
+        action_spec: TensorSpec,
+    ):
+        self.action_spec = action_spec
+
+    def __call__(self, action):
+        return torch.clamp(action, self.action_spec.low, self.action_spec.high)
+
+    def to(self, device: Optional[Union[torch.DeviceObjType, str]]=None) -> ActionContinuousClamper:
+        self.action_spec = self.action_spec.to(device)

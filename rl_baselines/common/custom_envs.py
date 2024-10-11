@@ -1,7 +1,8 @@
+import torch
 from typing import Optional, Union
 from omegaconf import DictConfig, ListConfig, OmegaConf
 import rl_baselines.environments as cenvs
-from torchrl.envs import EnvBase, Compose, TransformedEnv
+from torchrl.envs import EnvBase, Compose, TransformedEnv, DoubleToFloat
 from torchrl.data import OneHotDiscreteTensorSpec, BoundedTensorSpec, TensorSpec
 from torch.nn.parameter import UninitializedBuffer
 from copy import deepcopy
@@ -27,6 +28,7 @@ def parse_env_cfg(
     **kwargs,
 ) -> Union[EnvBase, TransformedEnv]:
     transforms = None
+    using_observation = not ('from_pixels' in kwargs) or not kwargs['from_pixels']
     if 'transforms' in kwargs:
         kwargs = deepcopy(kwargs)
         transforms_dict = kwargs.pop('transforms')
@@ -34,6 +36,20 @@ def parse_env_cfg(
             transforms = parse_transforms_cfg(transforms_dict)
     
     env = make_custom_envs(name, *args, **kwargs)
+    # Automatic adding of DoubleToFloat transform when observation is float64, used by mujoco envs
+    if using_observation and env.observation_spec['observation'].dtype == torch.float64:
+        # add transform DoubleToFloat
+        if transforms is not None:
+            # has double to float transform already
+            if isinstance(transforms, Compose):
+                if not any([isinstance(tr, DoubleToFloat) for tr in transforms]):
+                    transforms = Compose(DoubleToFloat(in_keys=['observation']), *transforms)
+            else:
+                if not isinstance(transforms, DoubleToFloat):
+                    transforms = Compose(DoubleToFloat(in_keys=['observation']), transforms)
+        else:
+            transforms = DoubleToFloat(in_keys=['observation'])
+
     if transforms is not None:
         env = TransformedEnv(env, transforms)
 

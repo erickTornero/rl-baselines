@@ -65,3 +65,16 @@ def mlp_builder(
             kwargs_out = activation_out_info.kwargs if activation_out_info.kwargs is not None else {}
         layers.append(out_fn_class(**kwargs_out))
     return nn.Sequential(*layers)
+
+
+def init_final_linear_layer(
+    model: nn.Sequential,
+    min_value: float,
+    max_value: float
+):
+    for ix in range(len(model) - 1, -1, -1):
+        if isinstance(model[ix], nn.Linear):
+            linear_layer = model[ix]
+            for p in linear_layer.parameters():
+                nn.init.uniform_(p, min_value, max_value)
+            break

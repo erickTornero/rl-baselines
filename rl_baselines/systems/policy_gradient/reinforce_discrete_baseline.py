@@ -37,7 +37,7 @@ class ReinforceDiscreteBaselineSystem(RLBaseSystem):
             out_keys=['baseline_value']
         )
         self.action_sampler = TensorDictModule(
-            CategoricalSampler(),
+            CategoricalSampler(environment.action_spec, return_onehot=False),
             in_keys=['action_probs'],
             out_keys=['action']
         )

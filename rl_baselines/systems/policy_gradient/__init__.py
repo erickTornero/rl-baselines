@@ -2,6 +2,7 @@ from .reinforce_discrete import ReinforceDiscreteSystem
 from .reinforce_discrete_baseline import ReinforceDiscreteBaselineSystem
 from .reinforce_discrete_ac import ReinforceDiscreteActorCriticSystem
 from .reinforce_continuous import ReinforceContinuousSystem
-from .reinforce_continous2 import ReinforceContinuousLogVarSystem
+#from .reinforce_continous2 import ReinforceContinuousLogVarSystem
 from .reinforce_continuous_baseline import ReinforceContinuousWithBaselineSystem
 from .reinforce_continuous_ac import ReinforceContinuousWithActorCriticSystem
+from .ppo_discrete import PPODiscreteSystem

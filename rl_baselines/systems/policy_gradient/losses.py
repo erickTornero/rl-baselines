@@ -163,3 +163,41 @@ class ReinforceContinuousLogVarLoss:
         #J = -0.99**(t) * log_p_action * G
         J = -log_p_action * G
         return J#.mean()
+
+class PPOLoss:
+    def __init__(
+        self,
+        epsilon: float,
+    ):
+        self.epsilon = epsilon
+
+    def __call__(
+        self,
+        actions_probs: torch.Tensor, # must be with gradients
+        actions_probs_old: torch.Tensor, # must be without gradients
+        advantage: torch.Tensor, # must be without gradients
+        action: torch.Tensor, # must be without gradients
+        state_value: torch.Tensor, # must be with gradients
+        state_value_target: torch.Tensor # must be without gradients
+    ):
+        import pdb;pdb.set_trace()
+        action_prob = torch.gather(
+            actions_probs,
+            dim=-1,
+            index=action.argmax(keepdim=True, dim=-1)
+        )
+        action_prob_old = torch.gather(
+            actions_probs_old,
+            dim=-1,
+            index=action.argmax(keepdim=True, dim=-1)
+        )
+        ratio = action_prob/(action_prob_old + 1e-8)
+        ratio_clipped = torch.clip(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon)
+        clip_loss = torch.minimum(ratio * advantage, ratio_clipped * advantage)
+
+        critic_loss = torch.sum((state_value_target - state_value)**2, dim=-1, keepdim=True)
+
+        # entropy
+        entropy = torch.distributions.Categorical(actions_probs).entropy()
+
+        return (-clip_loss.squeeze(-1) - 0.01 * entropy, critic_loss)

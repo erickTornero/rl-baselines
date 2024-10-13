@@ -180,7 +180,6 @@ class PPOLoss:
         state_value: torch.Tensor, # must be with gradients
         state_value_target: torch.Tensor # must be without gradients
     ):
-        import pdb;pdb.set_trace()
         action_prob = torch.gather(
             actions_probs,
             dim=-1,

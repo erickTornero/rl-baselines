@@ -6,3 +6,4 @@ from .reinforce_continuous import ReinforceContinuousSystem
 from .reinforce_continuous_baseline import ReinforceContinuousWithBaselineSystem
 from .reinforce_continuous_ac import ReinforceContinuousWithActorCriticSystem
 from .ppo_discrete import PPODiscreteSystem
+from .ppo_continuous import PPOContinuousSystem

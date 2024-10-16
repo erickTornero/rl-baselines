@@ -200,3 +200,34 @@ class PPOLoss:
         entropy = torch.distributions.Categorical(actions_probs).entropy()
 
         return (-clip_loss.squeeze(-1) - 0.01 * entropy, critic_loss)
+
+class PPOContinuousLoss:
+    def __init__(
+        self,
+        epsilon: float,
+    ):
+        self.epsilon = epsilon
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor, # must be with gradients
+        mean_action_old: torch.Tensor,
+        std_action: torch.Tensor, # must be with gradients
+        std_action_old: torch.Tensor,
+        advantage: torch.Tensor,
+        action: torch.Tensor,
+        state_value: torch.Tensor, # must be with gradients
+        state_value_target: torch.Tensor,
+    ):
+        dist = torch.distributions.Normal(mean_action, std_action)
+        dist_old = torch.distributions.Normal(mean_action_old, std_action_old)
+
+        # pi/pi_old -> exp(log(pi) - log(pi_old)) = exp(log(pi/pi_old)) = pi/pi_old
+        ratio = torch.exp(dist.log_prob(action) - dist_old.log_prob(action))
+        ratio_clipped = torch.clip(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon)
+        clip_loss = torch.minimum(ratio * advantage, ratio_clipped * advantage)
+        critic_loss = torch.sum((state_value_target - state_value)**2, dim=-1, keepdim=True)
+
+        entropy = dist.entropy()
+
+        return (-clip_loss - 0.01 * entropy, critic_loss)

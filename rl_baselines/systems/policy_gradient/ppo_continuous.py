@@ -93,6 +93,7 @@ class PPOContinuousSystem(RLBaseSystem):
         epochs_per_episode = self.cfg.trainer.epochs_per_episode
         max_traj_len = self.cfg.data.max_trajectory_length
         n_rollouts = self.cfg.data.nrollouts_per_iteration
+        normalize_advantages = self.cfg.system.normalize_advantages
         replay_buffer = ReplayBuffer(
             storage=LazyTensorStorage(max_size=n_rollouts * max_traj_len, device=self.device),
             batch_size=batch_size
@@ -113,6 +114,8 @@ class PPOContinuousSystem(RLBaseSystem):
             replay_buffer.extend(episode_data)
             cum_rw += episode_data['next', 'reward'].sum()
 
+        if normalize_advantages:
+            replay_buffer['advantage'] = (replay_buffer['advantage'] - replay_buffer['advantage'].mean())/(replay_buffer['advantage'].std() + 1e-8)
         cum_rw /= n_rollouts
         nbatches = math.ceil(epochs_per_episode * len(replay_buffer)//self.cfg.data.batch_size)
 

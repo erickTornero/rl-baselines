@@ -75,7 +75,7 @@ class PPOContinuousSystem(RLBaseSystem):
             self.action_sampler
         )
         self.loss_module = TensorDictModule(
-            PPOContinuousLoss(self.cfg.system.epsilon),
+            PPOContinuousLoss(**self.cfg.system.losses),
             in_keys=['mean_action', 'mean_action_old', 'std_action', 'std_action_old', 'advantage', 'action', 'state_value', 'QTarget'],
             out_keys=['clip_loss', 'critic_loss']
         )

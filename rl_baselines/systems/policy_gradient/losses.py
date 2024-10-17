@@ -205,8 +205,12 @@ class PPOContinuousLoss:
     def __init__(
         self,
         epsilon: float,
+        clip_factor: float=-1.0,
+        entropy_factor: float=-0.01,
     ):
         self.epsilon = epsilon
+        self.clip_factor = clip_factor
+        self.entropy_factor = entropy_factor
 
     def __call__(
         self,
@@ -230,4 +234,7 @@ class PPOContinuousLoss:
 
         entropy = dist.entropy()
 
-        return (-clip_loss - 0.01 * entropy, critic_loss)
+        return (
+            self.clip_factor * clip_loss + self.entropy_factor * entropy,
+            critic_loss
+        )

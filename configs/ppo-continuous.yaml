@@ -13,7 +13,6 @@ system:
   type: "ppo-continuous"
   gamma: 0.98
   gae: 0.92
-  epsilon: 0.1
   normalize_advantages: True
   mean_network:
     type: "mlp"
@@ -54,6 +53,11 @@ system:
       DoubleToFloat:
       ObservationNorm:
         in_keys: ['observation']
+
+  losses:
+    epsilon: 0.1
+    clip_factor: -1.0
+    entropy_factor: -0.01
 
   optimizer:
     name: Adam

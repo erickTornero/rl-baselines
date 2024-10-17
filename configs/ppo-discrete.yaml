@@ -1,0 +1,67 @@
+name: "ppo-discrete"
+exp_root_dir: "outputs/${system.environment.name}/${name}"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 64
+  max_trajectory_length: 1000
+  nrollouts_per_iteration: 4
+
+system:
+  type: "ppo-discrete"
+  gamma: 0.99
+  gae: 0.95
+  epsilon: 0.2
+  policy_network:
+    type: "mlp"
+    args:
+      hidden_dim: 256
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info:
+        type: Softmax
+        kwargs:
+          dim: -1
+  state_value_network:
+    type: "mlp"
+    args:
+      hidden_dim: 256
+      n_hidden: 2
+      activation_hidden_info:
+        type: Tanh
+        kwargs: null
+      activation_out_info: null
+
+
+  environment:
+    name: "CartPole-v1"
+    render: False
+    transforms:
+      ObservationNorm:
+        in_keys: ["observation"]
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.001
+      betas: [0.9, 0.999]
+
+  scheduler:
+    name: LinearLR
+    args:
+      start_factor: 1.0
+      end_factor: 0.1
+      total_iters: 200
+
+trainer:
+  max_episodes: 1000
+  epochs_per_episode: 5
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "${system.environment.name}/Episode Reward"
+  every_n_epochs: 10

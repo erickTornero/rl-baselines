@@ -226,15 +226,77 @@ class PPOContinuousLoss:
         dist = torch.distributions.Normal(mean_action, std_action)
         dist_old = torch.distributions.Normal(mean_action_old, std_action_old)
 
+        #dist = torch.distributions.MultivariateNormal(mean_action, torch.diag_embed(std_action**2))
+        #dist_old = torch.distributions.MultivariateNormal(mean_action_old, torch.diag_embed(std_action_old)**2)
         # pi/pi_old -> exp(log(pi) - log(pi_old)) = exp(log(pi/pi_old)) = pi/pi_old
         ratio = torch.exp(dist.log_prob(action) - dist_old.log_prob(action))
         ratio_clipped = torch.clip(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon)
         clip_loss = torch.minimum(ratio * advantage, ratio_clipped * advantage)
         critic_loss = torch.sum((state_value_target - state_value)**2, dim=-1, keepdim=True)
 
-        entropy = dist.entropy()
+        entropy = dist.entropy()#.unsqueeze(-1)
 
         return (
-            self.clip_factor * clip_loss + self.entropy_factor * entropy,
+            (self.clip_factor * clip_loss + self.entropy_factor * entropy),#.sum(-1),
             critic_loss
         )
+    
+
+class SACValuesContinuousLoss:
+    def __init__(
+        self,
+        gamma: float,
+    ):
+        self.gamma = gamma
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor, # must be with gradients
+        std_action: torch.Tensor, # must be with gradients
+        action: torch.Tensor,
+        state_value: torch.Tensor, # must be with gradients
+        state_value_target: torch.Tensor,
+        state_action_value:torch.Tensor
+    ):
+        cov_matrix = torch.diag_embed(std_action**2)
+        dist = torch.distributions.MultivariateNormal(mean_action, cov_matrix)
+        #dist = torch.distributions.Normal(mean_action, std)
+        logprob_action = dist.log_prob(action.detach()).unsqueeze(-1)
+        # compute loss of value function, acording to eq. 6 in sac paper
+        jv_loss = state_value * (state_value.detach() - state_action_value.detach() + logprob_action.detach())
+
+        # compute loss of q function, according to equation 9
+        jq_loss = state_action_value * (state_action_value.detach() - state_value_target)
+
+        return (
+            jv_loss + jq_loss,
+            jv_loss,
+            jq_loss,
+        )
+    
+class SACPolicyContinuousLoss:
+    def __init__(
+        self,
+        gamma: float,
+        #state_action_value_network: nn.Module
+    ):
+        self.gamma = gamma
+        #self.state_action_value_network = state_action_value_network
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor, # must be with gradients
+        std_action: torch.Tensor, # must be with gradients
+        action: torch.Tensor,
+        #observation: torch.Tensor, # must be with gradients
+        state_action_value:torch.Tensor
+    ):
+        cov_matrix = torch.diag_embed(std_action**2)
+        dist = torch.distributions.MultivariateNormal(mean_action, cov_matrix)
+        logprob_action = dist.log_prob(action.detach()).unsqueeze(-1)
+        # compute loss of value function, acording to eq. 6 in sac paper
+        #state_action = torch.concat((observation, action), dim=-1)
+        #state_action_value = self.state_action_value_network(state_action)
+        jpi_loss = logprob_action - state_action_value
+
+        return jpi_loss

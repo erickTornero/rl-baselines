@@ -1,12 +1,13 @@
 import torch
 from torch import nn
 
-class TargetEstimator:
+class TargetEstimator(nn.Module):
     def __init__(
         self,
         value_network: nn.Module,
         gamma: float,
     ):
+        super().__init__()
         self.value_network = value_network
         self.gamma = gamma
 

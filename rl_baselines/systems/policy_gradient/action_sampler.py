@@ -1,5 +1,5 @@
 import torch
-from torch.distributions import Categorical, Normal
+from torch.distributions import Categorical, Normal, MultivariateNormal
 from torchrl.data import TensorSpec, OneHotDiscreteTensorSpec
 
 class CategoricalSampler:
@@ -29,6 +29,35 @@ class ContinuousSampler:
     ) -> torch.Tensor:
         sampler = Normal(mean_action, std_action)
         action = sampler.sample()
+        # cliping
+        action = torch.clip(
+            action,
+            min=self.action_spec.space.low.to(action.device),
+            max=self.action_spec.space.high.to(action.device)
+        )
+
+        return action
+
+class ContinuousReparametrizationTrickSampler(ContinuousSampler):
+    def __init__(self, action_spec: TensorSpec):
+        super().__init__(action_spec)
+
+    def __call__(
+        self,
+        mean_action: torch.Tensor,
+        std_action: torch.Tensor
+    ) -> torch.Tensor:
+        #sampler = Normal(mean_action, std_action)
+        var = std_action**2
+        if mean_action.ndim > 1:
+            cov_matrix = torch.diag_embed(var)
+        else:
+            cov_matrix = torch.diag(var)
+        try:
+            sampler = MultivariateNormal(mean_action, cov_matrix)
+        except:
+            import pdb;pdb.set_trace()
+        action = sampler.rsample()
         # cliping
         action = torch.clip(
             action,

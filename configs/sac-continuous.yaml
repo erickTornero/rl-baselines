@@ -1,0 +1,97 @@
+name: "sac-continuous"
+exp_root_dir: "outputs/${system.environment.name}/${name}"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 64
+  max_trajectory_length: 1000
+  replay_buffer_size: 1000000
+  min_replay_buffer_size: 400
+
+
+system:
+  type: "sac-continuous"
+  gamma: 0.98
+  gae: 0.92
+  soft_update:
+    tau: 0.001
+    initialize_same_weights: True
+  mean_network:
+    type: "mlp"
+    args:
+      hidden_dim: 256
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info: 
+        type: Tanh
+        kwargs: null
+  std_network:
+    type: "mlp"
+    args:
+      hidden_dim: 256
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info:
+        type: Exp
+        kwargs: null
+  value_network:
+    type: "mlp"
+    args:
+      hidden_dim: 256
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info: null
+
+  state_action_network:
+    type: "mlp"
+    args:
+      hidden_dim: 400
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info: null
+
+  environment:
+    name: "Ant"
+    render: False
+    transforms:
+      DoubleToFloat:
+      ObservationNorm:
+        in_keys: ['observation']
+
+  losses:
+    epsilon: 0.1
+    clip_factor: -1.0
+    entropy_factor: -0.01
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 5.0e-05
+      betas: [0.9, 0.999]
+
+  scheduler:
+    name: LinearLR
+    args:
+      start_factor: 1.0
+      end_factor: 0.1
+      total_iters: 200
+
+trainer:
+  max_episodes: 1000
+  epochs_per_episode: 10
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "${system.environment.name}/Episode Reward"
+  every_n_epochs: 10
+  #average_last_k_episodes: 10 # average last episodes

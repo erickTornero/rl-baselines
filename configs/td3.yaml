@@ -1,0 +1,77 @@
+name: "td3"
+exp_root_dir: "outputs/${system.environment.name}/${name}"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 100
+  max_trajectory_length: 1000
+  replay_buffer_size: 1000000
+  min_replay_buffer_size: 400
+
+system:
+  type: "td3"
+  gamma: 0.99
+  soft_update:
+    tau: 0.005
+    initialize_same_weights: True
+  exploration:
+    type: "normal"
+    args:
+      mean: 0.0
+      sigma: 0.2
+      seed: -1
+  target_action_noise:
+    type: "normal-clamped"
+    args:
+      mean: 0.0
+      sigma: 0.3
+      seed: -1
+      c: 0.5
+  state_action_network:
+    type: "mlp"
+    args:
+      hidden_dim: 400
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info: null
+
+  policy_network:
+    type: "mlp"
+    args:
+      hidden_dim: 400
+      n_hidden: 2
+      activation_hidden_info:
+        type: ReLU
+        kwargs: null
+      activation_out_info: 
+        type: Tanh
+        kwargs: null
+
+  environment:
+    name: "MountainCarContinuous"
+    render: False
+    from_pixels: False
+
+  optimizer:
+    policy:
+      name: Adam
+      args:
+        lr: 0.001
+        betas: [0.9, 0.99]
+    critic:
+      name: Adam
+      args:
+        lr: 0.001
+        weight_decay: 0.01
+
+trainer:
+  max_episodes: 1000
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "${system.environment.name}/Episode Reward"
+  every_n_epochs: 10

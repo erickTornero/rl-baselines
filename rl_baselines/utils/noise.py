@@ -3,7 +3,37 @@ import torch
 from typing import Optional, Union
 import math
 
-class OrnsteinUhlenbeck:
+class NoiseProcess:
+    def __init__(
+        self,
+        seed: int,
+        size: int,
+        device: Union[str, torch.DeviceObjType]='cpu',
+        dtype=torch.float32,
+    ):
+        self.seed = seed
+        self.size = size
+        self.device = device
+        self.dtype = dtype
+
+    def __call__(self) -> torch.Tensor:
+        raise NotImplementedError("")
+
+    def init(self, *args, **kwargs):
+        pass
+
+    def to(
+        self,
+        device: Optional[Union[str, torch.DeviceObjType]]=None,
+        dtype: Optional[torch.dtype]=None
+    ) -> NoiseProcess:
+        if device is not None:
+            self.device = device
+        if dtype is not None:
+            self.dtype = dtype
+        return self
+
+class OrnsteinUhlenbeck(NoiseProcess):
     def __init__(
         self,
         delta: float,
@@ -15,14 +45,11 @@ class OrnsteinUhlenbeck:
         device: Union[str, torch.DeviceObjType]='cpu',
         dtype=torch.float32
     ):
+        super().__init__(seed, size, device, dtype)
         self.delta = delta
         self.sigma = sigma
         self.ou_a = ou_a
         self.ou_mu = ou_mu
-        self.seed = seed
-        self.size = size
-        self.device = device
-        self.dtype = dtype
         self._sqrt_delta_sigma = math.sqrt(self.delta) * self.sigma
     
     def _brownian_motion_log_returns(self):
@@ -54,15 +81,55 @@ class OrnsteinUhlenbeck:
             level = self()
             orns_noise.append(level)
         return torch.vstack(orns_noise)
-    
-    def to(self, device: Optional[Union[str, torch.DeviceObjType]]=None, dtype: Optional[torch.dtype]=None) -> OrnsteinUhlenbeck:
-        if device is not None:
-            self.device = device
-        if dtype is not None:
-            self.dtype = dtype
-        return self
 
+class NormalNoise(NoiseProcess):
+    def __init__(
+        self,
+        mean: float,
+        sigma: float,
+        seed: int,
+        size: int,
+        device: Union[str, torch.DeviceObjType]='cpu',
+        dtype=torch.float32
+    ):
+        super().__init__(seed, size, device, dtype)
+        self.mean = mean
+        self.sigma = sigma
+
+    def __call__(self, batch_size: Optional[int]=None):
+        shape = (batch_size, self.size) if batch_size is not None else self.size
+        return torch.normal(
+            torch.ones(shape, device=self.device, dtype=self.dtype) * self.mean,
+            torch.ones(shape, device=self.device, dtype=self.dtype) * self.sigma
+        )
     
+class NormalClampedNoise(NormalNoise):
+    def __init__(
+        self,
+        mean: float,
+        sigma: float,
+        c: float,
+        seed,
+        size,
+        device = 'cpu',
+        dtype=torch.float32
+    ):
+        super().__init__(
+            mean,
+            sigma,
+            seed,
+            size,
+            device,
+            dtype,
+        )
+        self.c = c
+
+    def __call__(self, batch_size: Optional[int]=None):
+        noise =  super().__call__(batch_size)
+        return torch.clamp(noise, -self.c, self.c)
+
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     ornstein = OrnsteinUhlenbeck(0.6, 0.2, ou_a=1, ou_mu=0.0, seed=20, size=2, dtype=torch.float32, device=torch.device('cuda'))

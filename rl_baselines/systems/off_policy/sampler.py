@@ -38,6 +38,25 @@ class ContinuousExplorationDDPGSampler:
         self.noise_process.init()
 
 
+class ContinuousExplorationTD3Sampler:
+    """
+        add noise to an action in continuous setting
+    """
+    def __init__(
+        self,
+        noise_process: Callable[[Optional[int]], torch.Tensor],
+    ):
+        self.noise_process = noise_process
+
+    def __call__(self, action_mean: torch.Tensor) -> torch.Tensor:
+        batch_size = action_mean.shape[0] if action_mean.ndim == 2 else None
+        noise = self.noise_process(batch_size)
+        return action_mean + noise
+
+    def reset_noise(self):
+        self.noise_process.init()
+
+
 class ActionContinuousClamper:
     def __init__(
         self,

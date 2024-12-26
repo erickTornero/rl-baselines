@@ -37,7 +37,7 @@ def parse_env_cfg(
     
     env = make_custom_envs(name, *args, **kwargs)
     # Automatic adding of DoubleToFloat transform when observation is float64, used by mujoco envs
-    if using_observation and env.observation_spec['observation'].dtype == torch.float64:
+    if using_observation and 'observation' in env.observation_spec and env.observation_spec['observation'].dtype == torch.float64:
         # add transform DoubleToFloat
         if transforms is not None:
             # has double to float transform already

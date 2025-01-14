@@ -2,10 +2,15 @@ import torch
 from typing import Optional, Union
 from omegaconf import DictConfig, ListConfig, OmegaConf
 import rl_baselines.environments as cenvs
-from torchrl.envs import EnvBase, Compose, TransformedEnv, DoubleToFloat
+from torchrl.envs import EnvBase, Compose, TransformedEnv, DoubleToFloat, EndOfLifeTransform, Transform
 from torchrl.data import OneHotDiscreteTensorSpec, BoundedTensorSpec, TensorSpec
 from torch.nn.parameter import UninitializedBuffer
 from copy import deepcopy
+from rl_baselines.common.preprocessing import DQNPreprocessing, StackObservation
+import rl_baselines.common.custom_env_transforms as ctransforms
+from torchrl.envs import GymEnv, GymWrapper, EnvBase
+from tensordict import TensorDict
+import rl_baselines.common.wrap_envs as cwrappers
 def make_custom_envs(
     name: str,
     *args,
@@ -34,7 +39,12 @@ def parse_env_cfg(
         transforms_dict = kwargs.pop('transforms')
         if transforms_dict is not None:
             transforms = parse_transforms_cfg(transforms_dict)
-    
+    if 'wrapper' in kwargs:
+        kwargs = deepcopy(kwargs)
+        wrapper_dict = kwargs.pop('wrapper')
+    else:
+        wrapper_dict = None
+
     env = make_custom_envs(name, *args, **kwargs)
     # Automatic adding of DoubleToFloat transform when observation is float64, used by mujoco envs
     if using_observation and 'observation' in env.observation_spec and env.observation_spec['observation'].dtype == torch.float64:
@@ -50,10 +60,30 @@ def parse_env_cfg(
         else:
             transforms = DoubleToFloat(in_keys=['observation'])
 
+    if 'force_fire' in kwargs and kwargs.get('force_fire'):
+        eof_transform = EndOfLifeTransform()
+        if transforms is None:
+            transforms = eof_transform
+        else:
+            if isinstance(transforms, Compose):
+                transforms.append(eof_transform)
+            else:
+                transforms = Compose(transforms, eof_transform)
+
     if transforms is not None:
         env = TransformedEnv(env, transforms)
 
+    if wrapper_dict is not None:
+        env = wrap_environment(env, wrapper_dict)
+
     return env
+
+def wrap_environment(
+    env: EnvBase,
+    wrap_cfg: OmegaConf
+) -> EnvBase:
+    wrapper_class = getattr(cwrappers, wrap_cfg.type)
+    return wrapper_class(env, **wrap_cfg.args)
 
 def get_env_action_dim(
     env: EnvBase
@@ -88,7 +118,11 @@ def parse_transform(
         transform_class = getattr(envs, name)
         transform = transform_class(*args, **kwargs)
     except:
-        raise NotImplementedError(f"transform <{name}> not found in torchrl.envs")
+        if hasattr(ctransforms, name):
+            transform_class = getattr(ctransforms, name)
+            transform = transform_class(*args, **kwargs)
+        else:
+            raise NotImplementedError(f"transform <{name}> not found in torchrl.envs")
     return transform
 
 def parse_transforms_cfg(
@@ -124,3 +158,4 @@ def init_env_stats(env) -> None:
             if hasattr(env.transform, 'init_stats'):
                 if isinstance(env.transform.loc, UninitializedBuffer):
                     env.transform.init_stats(init_stats_steps)
+

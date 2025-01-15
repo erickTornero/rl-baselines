@@ -91,9 +91,9 @@ class CNNPreprocessing(Transform):
 class StackTransform(Transform):
     def __init__(
         self, 
-        in_keys = "preprocessed", 
-        out_keys = "observation", 
-        in_keys_inv = None, 
+        in_keys = "preprocessed",
+        out_keys = "observation",
+        in_keys_inv = None,
         out_keys_inv = None,
         length=4
     ):

@@ -56,7 +56,7 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         self.action_values_module = TensorDictSequential(
             TensorDictModule(
                 TransformAndScale(scale=255.0, dtype=torch.float32),
-                in_keys=['observation'], #-->
+                in_keys=['observation'],
                 out_keys=['stack_proc']
             ),
             TensorDictModule(
@@ -97,31 +97,21 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             self.action_values_module,
             self.qsampler_module
         )
-        self.target_c = TensorDictModule(
-            QTargetEstimator(qvalues_network_target, self.cfg.system.gamma),
-            in_keys=[
-                ('next', 'reward'),
-                ('next', 'stack_proc'),
-                ('next', 'done')
-            ],
-            out_keys=['Qtarget']
-        )
         self.target_estimator = TensorDictSequential(
             TensorDictModule(
                 TransformAndScale(scale=255.0, dtype=torch.float32),
-                in_keys=[('next', 'observation')], #-->
+                in_keys=[('next', 'observation')],
                 out_keys=[('next', 'stack_proc')]
             ),
-            self.target_c
-            #TensorDictModule(
-            #    QTargetEstimator(qvalues_network_target, self.cfg.system.gamma),
-            #    in_keys=[
-            #        ('next', 'reward'),
-            #        ('next', 'observation'),
-            #        ('next', 'done')
-            #    ],
-            #    out_keys=['Qtarget']
-            #)
+            TensorDictModule(
+                QTargetEstimator(qvalues_network_target, self.cfg.system.gamma),
+                in_keys=[
+                    ('next', 'reward'),
+                    ('next', 'stack_proc'),
+                    ('next', 'done')
+                ],
+                out_keys=['Qtarget']
+            )
         )
 
         self.update_target = self.load_update_networks(

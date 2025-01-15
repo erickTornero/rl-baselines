@@ -1,22 +1,14 @@
 from __future__ import annotations
-from typing import Union, List, Optional
+from typing import Union
 from omegaconf import OmegaConf
 import torch
 from torch import nn, optim
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from tqdm import tqdm
-from rl_baselines.common import (
-    cnn_dqn,
-    make_custom_envs,
-    get_env_obs_dim,
-    get_env_action_dim
-)
-from rl_baselines.common.preprocessing import DQNPreprocessing, StackObservation
-from rl_baselines.utils.save_utils import SaveUtils
+from rl_baselines.common import get_env_action_dim
 from torchrl.envs import EnvBase
 from .losses import QLearningLoss, QTargetEstimator
-import pytorch_lightning as pl
 from rl_baselines.systems.base import RLBaseSystem
 import cv2
 import rl_baselines
@@ -73,33 +65,13 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                 out_keys=['action_values']
             )
         )
-        """
-        self.action_values_module2 = TensorDictSequential(
-            TensorDictModule(
-                TransformAndScale(scale=255.0, dtype=torch.float32),
-                in_keys=['stack2'], #-->
-                out_keys=['stack_proc2']
-            ),
-            TensorDictModule(
-                qvalues_network,
-                in_keys=['stack_proc2'],
-                out_keys=['action_values2']
-            )
-        )
-        """
 
         self.loss_module = TensorDictModule(
             QLearningLoss(use_onehot_actions=True),
             in_keys=['action_values', 'action', 'Qtarget'],
             out_keys=['qloss']
         )
-        """
-        self.loss_module2 = TensorDictModule(
-            QLearningLoss(use_onehot_actions=True),
-            in_keys=['action_values2', 'action', 'Qtarget2'],
-            out_keys=['qloss2']
-        )
-        """
+
         self.egreedy_sampler_module = TensorDictModule(
             QPolicyExplorationSampler(
                 self.action_spec,
@@ -151,24 +123,7 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             #    out_keys=['Qtarget']
             #)
         )
-        """
-        self.target_estimator2 = TensorDictSequential(
-            TensorDictModule(
-                TransformAndScale(scale=255.0, dtype=torch.float32),
-                in_keys=[('next', 'stack2')],
-                out_keys=[('next', 'stack_proc2')],
-            ),
-            TensorDictModule(
-                QTargetEstimator(qvalues_network_target, self.cfg.system.gamma),
-                in_keys=[
-                    ('next', 'reward'),
-                    ('next', 'stack_proc2'),
-                    ('next', 'done')
-                ],
-                out_keys=['Qtarget2']
-            )
-        )
-        """
+
         self.update_target = self.load_update_networks(
             qvalues_network,
             qvalues_network_target,
@@ -186,11 +141,7 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             ('next', 'reward'),
             ('next', 'observation'),
             ('next', 'done'),
-            #'stack2',
-            #('next', 'stack2'),
         ]
-        #self.stack = StackObservation(4)
-        #self.preprocessor = DQNPreprocessing((84, 84))
 
     def on_fit_start(self) -> None:
         self.env = self.env.to(self.device)
@@ -199,6 +150,7 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             storage=LazyTensorStorage(max_size=self.cfg.data.replay_buffer_size, device=self.device),
             batch_size=self.cfg.data.batch_size
         )
+
         #TODO: improve this way to send action spec to device
         self.action_spec = self.action_spec.to(self.device)
         self.qsampler_module.module.action_spec = self.action_spec
@@ -212,33 +164,19 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         # in reinforce a train step we consider a trajectory
         optimizer = self.optimizers()
         obs_dict = self.env.reset()
-        ##import pdb;pdb.set_trace()
-        #self.stack.reset()
         cum_rw = 0
         max_episode_length = self.cfg.data.max_trajectory_length
         log_qloss = 0
-        log_qloss2 = 0
         nfiring_actions = 0
         cumulator = Cummulator()
-        ###self.stack.push(self.preprocessor(obs_dict['pixels']))
-        ###obs_dict['stack2'] = self.stack.get()
-        #import pdb;pdb.set_trace()
-        if (self.gradient_update_counter + 1) % 5 == 0:
-            #import pdb;pdb.set_trace()
-            from rl_baselines.utils.plot_stack import check_replay_buffer
-            #diff = check_replay_buffer(self.memory_replay, 'stack', 'stack2', 32, 4)
-            #diff_next = check_replay_buffer(self.memory_replay, ('next', 'stack'), ('next', 'stack2'), 32, 4)
-            #print(f"difference in stack - stack2: {diff:.2f}, 'next' : {diff_next:.2f}")
+
         for t in range(max_episode_length):
             if obs_dict['end-of-life'].item():
-                #import pdb;pdb.set_trace()
                 # requires fire action
                 action = self.env.action_spec.encode(self.fire_index)
                 nfiring_actions += 1
                 tensordict = TensorDict({'action': action, **obs_dict})
                 tensordict = self.env.step(tensordict)
-                ##self.stack.push(self.preprocessor(tensordict['next', 'pixels'], tensordict['pixels']))
-                ##tensordict['next', 'stack2'] = self.stack.get()
                 t += self.cfg.system.frame_skip - t % self.cfg.system.frame_skip - 1
             else:
                 if t % self.cfg.system.frame_skip == 0:
@@ -249,30 +187,21 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                         tensordict = self.egreedy_sampler_module(tensordict)
 
                     tensordict = self.env.step(tensordict)
-                    ##self.stack.push(self.preprocessor(tensordict['next', 'pixels'], tensordict['pixels']))
-                    ##tensordict['next', 'stack2'] = self.stack.get()
                     last_action = tensordict['action']
                     self.agent_selection_counter += 1
 
                     if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
                             and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
                         # train step here
-                        #import pdb;pdb.set_trace()
                         batch = self.memory_replay.sample().clone()
                         with torch.no_grad():
                             batch = self.target_estimator(batch)
-                            #batch = self.target_estimator2(batch)
                         batch = self.action_values_module(batch)
-                        #batch = self.action_values_module2(batch)
                         loss_dict = self.loss_module(batch)
-                        #loss_dict = self.loss_module2(batch)
                         optimizer.zero_grad()
                         self.manual_backward(loss_dict.get('qloss').mean())
                         with torch.no_grad():
                             log_qloss = loss_dict.get('qloss').mean()
-                            #log_qloss2 = loss_dict.get('qloss2').mean()
-                            #if log_qloss.item() < 2e-5:
-                            #    import pdb;pdb.set_trace()
                         optimizer.step()
                         self.egreedy_sampler_module.module.step_egreedy()
                         self.gradient_update_counter += 1
@@ -281,8 +210,6 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                 else:
                     tensordict = TensorDict({'action': last_action, **obs_dict})
                     tensordict = self.env.step(tensordict)
-                    ##self.stack.push(self.preprocessor(tensordict['next', 'pixels'], tensordict['pixels']))
-                    ##tensordict['next', 'stack2'] = self.stack.get()
 
                     #reward = obs_dict.pop('reward')
             obs_dict = tensordict["next"].clone()
@@ -301,7 +228,6 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                 "Episode Reward": cum_rw,
                 "Replay Buffer Len": len(self.memory_replay),
                 "qnetwork_loss": log_qloss,
-                "qnetwork_loss2": log_qloss2,
                 "Epsilon egreedy": self.egreedy_sampler_module.module.epsilon,
                 "Action Value Avg": cumulator.mean(),
                 "Total Gradient Updates": self.gradient_update_counter,

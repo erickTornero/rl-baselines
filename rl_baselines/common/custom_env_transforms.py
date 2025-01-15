@@ -23,7 +23,7 @@ class CNNPreprocessing(Transform):
         out_size= (84, 84),
     ):
         super().__init__(in_keys, out_keys, in_keys_inv, out_keys_inv)
-        self.preprocessor = DQNPreprocessing0(out_size)
+        self.preprocessor = DQNPreprocessing(out_size)
 
     def _reset(self, tensordict, tensordict_reset):
         tensordict_reset = self._call(tensordict_reset)

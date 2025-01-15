@@ -13,6 +13,8 @@ system:
   type: "dqn-pixels"
   gamma: 0.99
   frame_skip: 4
+  stack_length: 4
+  grad_update_frequency: 1
   egreedy:
     epsilon_init: 1.0
     epsilon_end: 0.1
@@ -24,20 +26,12 @@ system:
       update_frequency: 5000
       initialize_same_weights: True
 
-  preprocess:
-    type: DQNPreprocessing
-    args:
-      out_size: [84, 84]
-  stack:
-    type: StackObservation
-    args:
-      length: 4
   network:
     type: "cnn"
     args:
       layers:
         - Conv2d:
-            in_channels: "${system.stack.args.length}"
+            in_channels: "${system.stack_length}"
             out_channels: 32
             kernel_size: 8
             stride: 4
@@ -66,11 +60,24 @@ system:
   environment:
     name: "Breakout"
     render: False
+    transforms:
+      CNNPreprocessing:
+        out_size: [84, 84]
+      StackTransform:
+        length: "${system.stack_length}"
+      EndOfLifeTransform:
+        eol_key: end-of-life
+        lives_key: lives
+        done_key: done
+    wrapper:
+      type: NoopEnvironment
+      args:
+        noop_action_max: 30
 
   optimizer:
     name: Adam
     args:
-      lr: 0.00025
+      lr: 0.0001
       betas: [0.9, 0.99]
 
 trainer:

@@ -53,12 +53,15 @@ class HardUpdate(UpdateNetworks):
     ):
         super().__init__(source_network, target_network)
         self.update_frequency = update_frequency
-        self.initialize_same_weights = initialize_same_weights
         self.counter = 0
+        self.nupdates = 0
+        if initialize_same_weights:
+            self.init_same()
 
     def __call__(self):
         if self.counter % self.update_frequency == 0:
             self._hard_update()
+            self.nupdates += 1
         self.counter += 1
 
     def _hard_update(self):

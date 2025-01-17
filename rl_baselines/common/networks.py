@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Dict, Union
+from typing import Any, Callable, Optional, Dict, Union, List
 import torch.nn as nn
 import torch
 from dataclasses import dataclass
@@ -21,6 +21,13 @@ class NoNegELU(nn.Module):
         else:
             return torch.exp(x) + 1e-6#self.epsilon
 
+class ViewLayer(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim > 2:
+            return x.view(x.shape[0], -1)
+        return x
+
+
 
 def find_nn_module(name: str, **kwargs) -> Callable[[], nn.Module]:
     try:
@@ -30,6 +37,8 @@ def find_nn_module(name: str, **kwargs) -> Callable[[], nn.Module]:
             module = Exp
         elif name == 'NoNegELU':
             module = NoNegELU
+        elif name == 'ViewLayer':
+            module = ViewLayer
         else:
             raise ModuleNotFoundError(f"Module <{name}> not found in torch.nn>")
     return module
@@ -78,3 +87,18 @@ def init_final_linear_layer(
             for p in linear_layer.parameters():
                 nn.init.uniform_(p, min_value, max_value)
             break
+
+def cnn_dqn(
+    out_dim: int,
+    layers: List[Dict]
+) -> nn.Sequential:
+    layers_modules = []
+    for idx, (layer_dict) in enumerate(layers):
+        for (layer_type, layer_props) in layer_dict.items():
+            module_class = find_nn_module(layer_type)
+            if idx == (len(layers) - 1) and module_class == nn.Linear and layer_props['out_features'] is None:
+                layer_props['out_features'] = int(out_dim)
+            if layer_props is None:
+                layer_props = {}
+            layers_modules.append(module_class(**layer_props))
+    return nn.Sequential(*layers_modules)

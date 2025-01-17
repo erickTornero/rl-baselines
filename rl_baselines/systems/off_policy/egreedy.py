@@ -54,6 +54,8 @@ class QPolicyExplorationSampler(QPolicySampler):
         if random.random() < self.epsilon:
             action = self.action_spec.sample()
             action_index = action.argmax(keepdim=True)
+            if action_values.ndim > 1:
+                action_values = action_values.squeeze(0)
             chosen_qvalues = torch.gather(action_values, -1, action_index)
             if not self._return_onehot:
                 action = action_index

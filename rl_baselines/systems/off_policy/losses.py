@@ -44,6 +44,33 @@ class QLearningLoss:
         loss = torch.sum((target_action_values - chosen_action_values)**2, dim=-1)
         return loss
 
+class QLearningBellmanClippedLoss:
+    def __init__(
+        self,
+        use_onehot_actions: bool=False,
+        min_val: float=-1.0,
+        max_val: float=1.0
+    ) -> None:
+        self.use_onehot_actions = use_onehot_actions
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __call__(
+        self,
+        action_value: torch.Tensor,
+        action: torch.Tensor,
+        target_action_values: torch.Tensor,
+    ) -> torch.Tensor:
+        if self.use_onehot_actions:
+            action_index = torch.argmax(action, dim=-1, keepdim=True)
+        else:
+            action_index = action
+        chosen_action_values = torch.gather(action_value, -1, action_index)
+        bellman = target_action_values - chosen_action_values
+        bellman_clipped = torch.clamp(bellman, self.min_val, self.max_val)
+        loss = torch.sum((bellman_clipped)**2, dim=-1)
+        return loss
+
 class QTargetEstimatorContinuous(torch.nn.Module):
     """
         From ddpg paper

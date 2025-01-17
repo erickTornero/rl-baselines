@@ -7,16 +7,19 @@ from tqdm import tqdm
 from rl_baselines.common import (
     mlp_builder,
     parse_env_cfg,
-    init_env_stats
+    init_env_stats,
+    cnn_dqn
 )
 from rl_baselines.common.custom_envs import parse_env_cfg
 from rl_baselines.utils.save_utils import SaveUtils
 from torchrl.envs import EnvBase
 import pytorch_lightning as pl
-from typing import Union
+from typing import Union, Optional
 import cv2
 from collections import deque
 from typing import Dict
+from rl_baselines.common.preprocessing import DQNPreprocessing, StackObservation, Preprocessing
+from rl_baselines.utils.weights import UpdateNetworks, SoftUpdate, HardUpdate
 
 class RLBaseSystem(pl.LightningModule, SaveUtils):
     def __init__(
@@ -135,11 +138,11 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         env = parse_env_cfg(**environment_cfg)
         init_env_stats(env)
         return env
-    
+
     @staticmethod
     def load_network_from_cfg(
-        network_cfg: OmegaConf, 
-        input_dim: int, 
+        network_cfg: OmegaConf,
+        input_dim: int,
         output_dim: int
     ) -> nn.Module:
         if network_cfg.type == "mlp":
@@ -148,9 +151,56 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
                 output_dim,
                 **network_cfg.args,
             )
+        elif network_cfg.type == "cnn":
+            network = cnn_dqn(
+                output_dim,
+                network_cfg.args.layers,
+            )
         else:
             raise NotImplementedError(f"Network Type: {network_cfg.type} not implemented!")
         return network
+
+    @staticmethod
+    def load_preprocessor(
+        preprocess_cfg: OmegaConf
+    ) -> Optional[Preprocessing]:
+        if preprocess_cfg.type == 'DQNPreprocessing':
+            preprocessor = DQNPreprocessing(**preprocess_cfg.args)
+        else:
+            raise NotImplementedError("")
+        return preprocessor
+
+    @staticmethod
+    def load_stackruntime(
+        stack_cfg: OmegaConf
+    ) -> Optional[StackObservation]:
+        if stack_cfg.type == 'StackObservation':
+            stack = StackObservation(**stack_cfg.args)
+        else:
+            raise NotImplementedError("")
+        return stack
+
+    @staticmethod
+    def load_update_networks(
+        source_network: Union[nn.Module, nn.Sequential],
+        target_network: Union[nn.Module, nn.Sequential],
+        update_cfg: OmegaConf
+    ) -> Optional[UpdateNetworks]:
+        if update_cfg.type == "soft-update":
+            update = SoftUpdate(
+                source_network,
+                target_network,
+                **update_cfg.args
+            )
+        elif update_cfg.type == "hard-update":
+            update = HardUpdate(
+                source_network,
+                target_network,
+                **update_cfg.args
+            )
+        else:
+            raise NotImplementedError(f"not supported <{update_cfg.type}>")
+        return update
 
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> RLBaseSystem:

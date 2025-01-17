@@ -1,0 +1,95 @@
+name: "qlearning-discrete"
+exp_root_dir: "outputs/${system.environment.name}/${name}"
+seed: -1
+
+data:
+  type: "dummy-rl-datamodule"
+  batch_size: 32
+  max_trajectory_length: 100000
+  replay_buffer_size: 80000
+  min_replay_buffer_size: 50000
+
+system:
+  type: "dqn-pixels"
+  gamma: 0.99
+  frame_skip: 4
+  stack_length: 4
+  grad_update_frequency: 1
+  egreedy:
+    epsilon_init: 1.0
+    epsilon_end: 0.1
+    annealing_steps: "${data.replay_buffer_size}"
+
+  update_networks:
+    type: "hard-update"
+    args:
+      update_frequency: 5000
+      initialize_same_weights: True
+
+  network:
+    type: "cnn"
+    args:
+      layers:
+        - Conv2d:
+            in_channels: "${system.stack_length}"
+            out_channels: 32
+            kernel_size: 8
+            stride: 4
+        - ReLU: 
+        - Conv2d:
+            in_channels: 32
+            out_channels: 64
+            kernel_size: 4
+            stride: 2
+        - ReLU:
+        - Conv2d:
+            in_channels: 64
+            out_channels: 64
+            kernel_size: 3
+            stride: 1
+        - ReLU:
+        - ViewLayer:
+        - Linear:
+            in_features: 3136
+            out_features: 512
+        - ReLU:
+        - Linear:
+            in_features: 512
+            out_features:
+
+  environment:
+    name: "Breakout"
+    render: False
+    transforms:
+      FrameSkipMaxTransform:
+        frame_skip: 4
+        max_of_last: 2
+        out_key_max: "max_pixels"
+      CNNPreprocessing:
+        in_keys: max_pixels
+        out_size: [84, 84]
+      StackTransform:
+        length: "${system.stack_length}"
+      EndOfLifeTransform:
+        eol_key: end-of-life
+        lives_key: lives
+        done_key: done
+    wrapper:
+      type: NoopEnvironment
+      args:
+        noop_action_max: 30
+
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.0001
+      betas: [0.9, 0.99]
+
+trainer:
+  max_episodes: 50000
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: 2
+  monitor: "${system.environment.name}/Episode Reward"
+  every_n_epochs: 10

@@ -167,39 +167,33 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                 nfiring_actions += 1
                 tensordict = TensorDict({'action': action, **obs_dict})
                 tensordict = self.env.step(tensordict)
-                t += self.cfg.system.frame_skip - t % self.cfg.system.frame_skip - 1
             else:
-                if t % self.cfg.system.frame_skip == 0:
+                with torch.no_grad():
+                    #tensordict = self.policy_explore(obs_dict.unsqueeze(0))
+                    tensordict = self.action_values_module(obs_dict.unsqueeze(0)).squeeze(0)
+                    cumulator.step(tensordict['action_values'].max())
+                    tensordict = self.egreedy_sampler_module(tensordict)
+
+                tensordict = self.env.step(tensordict)
+                self.agent_selection_counter += 1
+
+                if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
+                        and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
+                    # train step here
+                    batch = self.memory_replay.sample().clone()
                     with torch.no_grad():
-                        #tensordict = self.policy_explore(obs_dict.unsqueeze(0))
-                        tensordict = self.action_values_module(obs_dict.unsqueeze(0)).squeeze(0)
-                        cumulator.step(tensordict['action_values'].max())
-                        tensordict = self.egreedy_sampler_module(tensordict)
+                        batch = self.target_estimator(batch)
+                    batch = self.action_values_module(batch)
+                    loss_dict = self.loss_module(batch)
+                    optimizer.zero_grad()
+                    self.manual_backward(loss_dict.get('qloss').mean())
+                    with torch.no_grad():
+                        log_qloss = loss_dict.get('qloss').mean()
+                    optimizer.step()
+                    self.egreedy_sampler_module.module.step_egreedy()
+                    self.gradient_update_counter += 1
 
-                    tensordict = self.env.step(tensordict)
-                    last_action = tensordict['action']
-                    self.agent_selection_counter += 1
-
-                    if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
-                            and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
-                        # train step here
-                        batch = self.memory_replay.sample().clone()
-                        with torch.no_grad():
-                            batch = self.target_estimator(batch)
-                        batch = self.action_values_module(batch)
-                        loss_dict = self.loss_module(batch)
-                        optimizer.zero_grad()
-                        self.manual_backward(loss_dict.get('qloss').mean())
-                        with torch.no_grad():
-                            log_qloss = loss_dict.get('qloss').mean()
-                        optimizer.step()
-                        self.egreedy_sampler_module.module.step_egreedy()
-                        self.gradient_update_counter += 1
-
-                        self.update_target()
-                else:
-                    tensordict = TensorDict({'action': last_action, **obs_dict})
-                    tensordict = self.env.step(tensordict)
+                    self.update_target()
 
                     #reward = obs_dict.pop('reward')
             obs_dict = tensordict["next"].clone()
@@ -261,31 +255,19 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         trajectory = []
         crw = 0
         max_episode_steps = self.cfg.data.max_trajectory_length
-        """
-        if self.noop_action_max > 0 and self.noop_action_index >= 0:
-            for _ in range(self.noop_action_max):
-                td = self.env.step(
-                    TensorDict({
-                        'action': self.env.action_spec.encode(self.noop_action_index),
-                        #'observation': self.stack.get(),
-                        'lives': obs_dict['lives'],
-                    })
-                )
-        """
 
         if self.fire_index >= 0:
             td = self.env.step(
                 TensorDict({
                     'action': self.env.action_spec.encode(self.fire_index),
-                    #'observation': self.stack.get(),
-                    ##'lives': obs_dict['lives']
+                    **obs_dict
                 })
             )
 
         pbar = tqdm(total=max_episode_steps)
 
         for istep in range(max_episode_steps):
-            if False:#obs_dict['end-of-life'].item():
+            if obs_dict['end-of-life'].item():
                 obs_dict['action'] = self.env.action_spec.encode(self.fire_index)
                 action_dict = obs_dict
             else:
@@ -296,7 +278,6 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                     #print(action_dict['action'])
             next_dict = self.env.step(action_dict)
             #print(next_dict['next', 'truncated'].item(), next_dict['next', 'terminated'].item(), next_dict['next', 'end-of-life'].item())
-            print(action_dict['action'])
             trajectory.append(next_dict)
             obs_dict = next_dict['next'].clone()
             reward = obs_dict.pop('reward')
@@ -304,8 +285,9 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             done = next_dict['next', 'done']
             if render:
                 img = self.env.render()
-                data_plot = plot_rgb_stack(next_dict['pixels'], next_dict['stack'], next_dict['next', 'stack'])
-                self.display_img(data_plot.cpu().numpy())
+                #data_plot = plot_rgb_stack(next_dict['pixels'], next_dict['stack'], next_dict['next', 'stack'])
+                #self.display_img(data_plot.cpu().numpy())
+                self.display_img(self.env.render())
                 if save_video:
                     #frames.append(img)
                     video.write(img)
@@ -321,7 +303,7 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
 
     def display_img(self, img):
         cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(100)
+        k = cv2.waitKey(33)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer

@@ -4,6 +4,7 @@ The goal of this repository is to learn a little more about reinforcement learni
 
 <p align="center">
     <img src="./assets/reinforce_out_example.gif" />
+    <img src="./assets/dqn_breakout.gif" />
 </p>
 
 ### Stack:

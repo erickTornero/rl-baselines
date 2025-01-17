@@ -5,6 +5,63 @@ from rl_baselines.common.preprocessing import DQNPreprocessing, DQNPreprocessing
 from torchrl.envs import Transform
 from collections import deque
 
+class FrameSkipMaxTransform(Transform):
+    """A frame-skip transform.
+
+    This transform applies the same action repeatedly in the parent environment,
+    which improves stability on certain training sota-implementations.
+
+    Args:
+        frame_skip (int, optional): a positive integer representing the number
+            of frames during which the same action must be applied.
+
+    """
+
+    def __init__(
+        self,
+        frame_skip: int = 1,
+        max_of_last: int=1,
+        in_key_max: str="pixels",
+        out_key_max: str="max_pixels",
+    ):
+        super().__init__()
+        if frame_skip < 1:
+            raise ValueError("frame_skip should have a value greater or equal to one.")
+        self.frame_skip = frame_skip
+        self._last_frames = deque(maxlen=max_of_last)
+        self.in_key_max= in_key_max
+        self.out_key_max = out_key_max
+        self.max_of_last = max_of_last
+
+    def _step(
+        self, tensordict: TensorDictBase, next_tensordict: TensorDictBase
+    ) -> TensorDictBase:
+        parent = self.parent
+        if parent is None:
+            raise RuntimeError("parent not found for FrameSkipTransform")
+        reward_key = parent.reward_key
+        reward = next_tensordict.get(reward_key)
+        ## apply frames into queue
+        self._last_frames.append(next_tensordict.get(self.in_key_max))
+        for _ in range(self.frame_skip - 1):
+            next_tensordict = parent._step(tensordict)
+            reward = reward + next_tensordict.get(reward_key)
+            self._last_frames.append(next_tensordict.get(self.in_key_max))
+        next_tensordict.set(self.out_key_max, torch.maximum(*self._last_frames))
+
+        return next_tensordict.set(reward_key, reward)
+
+    def forward(self, tensordict):
+        raise RuntimeError(
+            "FrameSkipTransform can only be used when appended to a transformed env."
+        )
+
+    def _reset(self, tensordict, tensordict_reset):
+        self._last_frames = deque(maxlen=self.max_of_last)
+        self._last_frames.append(tensordict_reset.get(self.in_key_max))
+        tensordict_reset.set(self.out_key_max, self._last_frames[-1].clone())
+        return super()._reset(tensordict, tensordict_reset)
+
 class CNNPreprocessing(Transform):
     """
         Compatible with environment transforms of torchrl

@@ -61,7 +61,12 @@ system:
     name: "Breakout"
     render: False
     transforms:
+      FrameSkipMaxTransform:
+        frame_skip: 4
+        max_of_last: 2
+        out_key_max: "max_pixels"
       CNNPreprocessing:
+        in_keys: max_pixels
         out_size: [84, 84]
       StackTransform:
         length: "${system.stack_length}"

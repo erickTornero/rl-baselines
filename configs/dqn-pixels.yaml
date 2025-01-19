@@ -75,7 +75,7 @@ system:
         lives_key: lives
         done_key: done
     wrapper:
-      type: NoopEnvironment
+      type: NoopFiringResetEnvironment
       args:
         noop_action_max: 30
 

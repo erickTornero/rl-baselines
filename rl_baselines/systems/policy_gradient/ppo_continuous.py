@@ -75,7 +75,7 @@ class PPOContinuousSystem(RLBaseSystem):
             self.action_sampler
         )
         self.loss_module = TensorDictModule(
-            PPOContinuousLoss(**self.cfg.system.losses),
+            PPOContinuousLoss(**(self.cfg.system.losses if 'losses' in self.cfg.system else {})),
             in_keys=['mean_action', 'mean_action_old', 'std_action', 'std_action_old', 'advantage', 'action', 'state_value', 'QTarget'],
             out_keys=['clip_loss', 'critic_loss']
         )
@@ -106,7 +106,6 @@ class PPOContinuousSystem(RLBaseSystem):
                     policy=self.policy,
                     auto_cast_to_device=True
                 )
-                #import pdb;pdb.set_trace()
                 self.gae(episode_data)
                 #episode_data['advantage'] = (episode_data['advantage'] - episode_data['advantage'].mean())/(episode_data['advantage'].std() + 1e-8)
             episode_data['mean_action_old'] = episode_data['mean_action'].clone()
@@ -130,7 +129,6 @@ class PPOContinuousSystem(RLBaseSystem):
             #probs_dict = self.policy_reinforce(tensordict)
             loss_dict = self.loss_module(tensordict)
             optimizer.zero_grad()
-            #import pdb;pdb.set_trace()
             self.manual_backward(loss_dict.get('clip_loss').mean())
             optimizer.step()
 
@@ -178,7 +176,6 @@ class PPOContinuousSystem(RLBaseSystem):
         else:
             cfg = config
         env = RLBaseSystem.load_env_from_cfg(cfg.system.environment)
-        #import pdb;pdb.set_trace()
         mean_network = RLBaseSystem.load_network_from_cfg(
             cfg.system.mean_network,
             input_dim=get_env_obs_dim(env),

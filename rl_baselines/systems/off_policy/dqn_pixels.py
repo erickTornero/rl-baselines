@@ -90,18 +90,20 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
             in_keys=['action_values'],
             out_keys=['action', 'Qvalue']
         )
+        self.firing_module = TensorDictModule(
+            FiringEndOfLifePolicy(self.env),
+            in_keys=["action", "end-of-life"],
+            out_keys=["action"]
+        )
         self.policy_explore = TensorDictSequential(
             self.action_values_module,
             self.egreedy_sampler_module,
-            TensorDictModule(
-                FiringEndOfLifePolicy(self.env),
-                in_keys=["action", "end-of-life"],
-                out_keys=["action"]
-            )
+            self.firing_module
         )
         self.policy = TensorDictSequential(
             self.action_values_module,
-            self.qsampler_module
+            self.qsampler_module,
+            self.firing_module
         )
         self.target_estimator = TensorDictSequential(
             TensorDictModule(
@@ -217,89 +219,6 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
                 "Episode frames": t
             }
         )
-
-    def validation_step(self, batch):
-        pass
-
-    def test_rollout(self, save_video: bool=False):
-        from torchrl.envs.transforms import EndOfLifeTransform, TransformedEnv
-        from rl_baselines.utils.plot_stack import plot_rgb_stack
-        #self.env = TransformedEnv(
-        #    self.env,
-        #    EndOfLifeTransform(
-        #        eol_key="end-of-life",
-        #        lives_key="lives",
-        #        done_key="done",
-        #    )
-        #)
-        obs_dict = self.env.reset()
-
-        render = self.env._env.render_mode == 'rgb_array'
-        if render:
-            img = self.env.render()
-            self.display_img(img)
-            if save_video:
-                video = cv2.VideoWriter(
-                    self.get_absolute_path('output.mp4'),
-                    cv2.VideoWriter_fourcc(*'mp4v'),
-                    125,
-                    (img.shape[1], img.shape[0]),
-                    #False
-                )
-                video.write(img)
-                #frames.append(img)
-        trajectory = []
-        crw = 0
-        max_episode_steps = self.cfg.data.max_trajectory_length
-
-        if self.fire_index >= 0:
-            td = self.env.step(
-                TensorDict({
-                    'action': self.env.action_spec.encode(self.fire_index),
-                    **obs_dict
-                })
-            )
-
-        pbar = tqdm(total=max_episode_steps)
-
-        for istep in range(max_episode_steps):
-            if obs_dict['end-of-life'].item():
-                obs_dict['action'] = self.env.action_spec.encode(self.fire_index)
-                action_dict = obs_dict
-            else:
-                with torch.no_grad():
-                    #action_dict = self.policy(obs_dict)
-                    action_dict = self.action_values_module(obs_dict.unsqueeze(0)).squeeze(0)
-                    action_dict = self.qsampler_module(action_dict)
-                    #print(action_dict['action'])
-            next_dict = self.env.step(action_dict)
-            #print(next_dict['next', 'truncated'].item(), next_dict['next', 'terminated'].item(), next_dict['next', 'end-of-life'].item())
-            trajectory.append(next_dict)
-            obs_dict = next_dict['next'].clone()
-            reward = obs_dict.pop('reward')
-            crw += reward
-            done = next_dict['next', 'done']
-            if render:
-                img = self.env.render()
-                #data_plot = plot_rgb_stack(next_dict['pixels'], next_dict['stack'], next_dict['next', 'stack'])
-                #self.display_img(data_plot.cpu().numpy())
-                self.display_img(self.env.render())
-                if save_video:
-                    #frames.append(img)
-                    video.write(img)
-            pbar.update(1)
-            #import pdb;pdb.set_trace()
-            if done.item():
-                break
-        pbar.close()
-        if save_video:
-            video.release()
-
-        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
-
-    def display_img(self, img):
-        cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(33)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer

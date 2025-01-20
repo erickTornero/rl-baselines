@@ -69,7 +69,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         pbar = tqdm(total=max_episode_steps)
         for istep in range(max_episode_steps):
             with torch.no_grad():
-                action_dict = self.policy(obs_dict)
+                action_dict = self.policy(obs_dict.unsqueeze(0)).squeeze(0)
             next_dict = self.env.step(action_dict)
             trajectory.append(next_dict)
             obs_dict = next_dict['next'].clone()
@@ -83,7 +83,6 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
                     #frames.append(img)
                     video.write(img)
             pbar.update(1)
-            #import pdb;pdb.set_trace()
             if done.item():
                 break
         pbar.close()
@@ -117,7 +116,9 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         env_state_dict = {}
         for name in ckpt['state_dict'].keys():
             if name.find('env.') == 0:
-                env_state_dict[name.replace('env.', '')] = ckpt['state_dict'][name]
+                name_key = name.replace('env.', '', 1)
+                name_key = name_key.replace('.transforms.', '_transform.transforms.', 1)
+                env_state_dict[name_key] = ckpt['state_dict'][name]
 
         if len(env_state_dict) > 0:
             self.env.load_state_dict(env_state_dict)

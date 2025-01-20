@@ -204,7 +204,7 @@ class PPOLoss:
 class PPOContinuousLoss:
     def __init__(
         self,
-        epsilon: float,
+        epsilon: float= 0.1,
         clip_factor: float=-1.0,
         entropy_factor: float=-0.01,
     ):

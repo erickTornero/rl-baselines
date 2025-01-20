@@ -14,6 +14,7 @@ import cv2
 import rl_baselines
 from .egreedy import QPolicyExplorationSampler, QPolicySampler
 from torchrl.data import ReplayBuffer, LazyTensorStorage
+from rl_baselines.common.firing import FiringEndOfLifePolicy
 
 class TransformAndScale:
     def __init__(self, scale: float=255.0, dtype: torch.dtype=torch.float32):
@@ -91,7 +92,12 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         )
         self.policy_explore = TensorDictSequential(
             self.action_values_module,
-            self.egreedy_sampler_module
+            self.egreedy_sampler_module,
+            TensorDictModule(
+                FiringEndOfLifePolicy(self.env),
+                in_keys=["action", "end-of-life"],
+                out_keys=["action"]
+            )
         )
         self.policy = TensorDictSequential(
             self.action_values_module,
@@ -157,43 +163,33 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         cum_rw = 0
         max_episode_length = self.cfg.data.max_trajectory_length
         log_qloss = 0
-        nfiring_actions = 0
         cumulator = Cummulator()
 
         for t in range(max_episode_length):
-            if obs_dict['end-of-life'].item():
-                # requires fire action
-                action = self.env.action_spec.encode(self.fire_index)
-                nfiring_actions += 1
-                tensordict = TensorDict({'action': action, **obs_dict})
-                tensordict = self.env.step(tensordict)
-            else:
+            with torch.no_grad():
+                tensordict = self.policy_explore(obs_dict.unsqueeze(0)).squeeze(0)
+                cumulator.step(tensordict['action_values'].max())
+
+            tensordict = self.env.step(tensordict)
+            self.agent_selection_counter += 1
+
+            if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
+                    and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
+                # train step here
+                batch = self.memory_replay.sample().clone()
                 with torch.no_grad():
-                    #tensordict = self.policy_explore(obs_dict.unsqueeze(0))
-                    tensordict = self.action_values_module(obs_dict.unsqueeze(0)).squeeze(0)
-                    cumulator.step(tensordict['action_values'].max())
-                    tensordict = self.egreedy_sampler_module(tensordict)
+                    batch = self.target_estimator(batch)
+                batch = self.action_values_module(batch)
+                loss_dict = self.loss_module(batch)
+                optimizer.zero_grad()
+                self.manual_backward(loss_dict.get('qloss').mean())
+                with torch.no_grad():
+                    log_qloss = loss_dict.get('qloss').mean()
+                optimizer.step()
+                self.egreedy_sampler_module.module.step_egreedy()
+                self.gradient_update_counter += 1
 
-                tensordict = self.env.step(tensordict)
-                self.agent_selection_counter += 1
-
-                if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
-                        and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
-                    # train step here
-                    batch = self.memory_replay.sample().clone()
-                    with torch.no_grad():
-                        batch = self.target_estimator(batch)
-                    batch = self.action_values_module(batch)
-                    loss_dict = self.loss_module(batch)
-                    optimizer.zero_grad()
-                    self.manual_backward(loss_dict.get('qloss').mean())
-                    with torch.no_grad():
-                        log_qloss = loss_dict.get('qloss').mean()
-                    optimizer.step()
-                    self.egreedy_sampler_module.module.step_egreedy()
-                    self.gradient_update_counter += 1
-
-                    self.update_target()
+                self.update_target()
 
                     #reward = obs_dict.pop('reward')
             obs_dict = tensordict["next"].clone()
@@ -310,11 +306,6 @@ class DQNDiscretePixelsSystem(RLBaseSystem):
         optimizer_class = getattr(optim, cfg_optimizer.name)
         optimizer = optimizer_class(self.action_values_module.module.parameters(), **cfg_optimizer.args)
         return optimizer
-
-    def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu')
-        print(f'Loading state dict from {path}')
-        self.load_state_dict(ckpt['state_dict'])
 
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> DQNDiscretePixelsSystem:

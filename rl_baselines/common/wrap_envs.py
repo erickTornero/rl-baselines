@@ -56,3 +56,27 @@ class NoopEnvironment(EnvBase):
     @property
     def action_spec(self):
         return self._env.action_spec
+
+
+class NoopFiringResetEnvironment(NoopEnvironment):
+    """
+        Apply N noop actions and 1 firing action at reset
+    """
+    def __init__(
+        self,
+        env: Union[GymEnv, TransformedEnv],
+        noop_action_max: int,
+        *args,
+        **kwargs
+    ):
+        super().__init__(env, noop_action_max, *args, **kwargs)
+        self.fire_index = self.env.unwrapped.get_action_meanings().index('FIRE') if 'FIRE' in self.env.unwrapped.get_action_meanings() else -1
+
+    def _reset(self, tensordict, **kwargs):
+        obs_dict = super()._reset(tensordict, **kwargs)
+        if self.fire_index >= 0:
+            action_fire = self.action_spec.encode(self.fire_index)
+            obs_dict['action'] = action_fire
+            tensordict = self._step(obs_dict)
+            obs_dict = tensordict['next']
+        return obs_dict

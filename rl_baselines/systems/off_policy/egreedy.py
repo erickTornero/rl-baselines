@@ -21,7 +21,7 @@ class QPolicySampler:
     def __call__(self, action_values: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         action = self.sample_action(action_values)
         if self._return_onehot:
-            action_index = action.argmax(dim=-1)
+            action_index = action.argmax(dim=-1, keepdim=True)
         else:
             action_index = action
         chosen_qvalues = torch.gather(action_values, -1, action_index)
@@ -51,11 +51,15 @@ class QPolicyExplorationSampler(QPolicySampler):
         self.epsilon_end = epsilon_end
 
     def __call__(self, action_values: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        ndim = action_values.ndim
         if random.random() < self.epsilon:
-            action = self.action_spec.sample()
-            action_index = action.argmax(keepdim=True)
-            if action_values.ndim > 1:
-                action_values = action_values.squeeze(0)
+            if ndim == 1:
+                action = self.action_spec.sample()
+            elif ndim == 2:
+                action = self.action_spec.sample((action_values.shape[0], ))
+            else:
+                raise NotImplementedError("")
+            action_index = action.argmax(dim=-1, keepdim=True)
             chosen_qvalues = torch.gather(action_values, -1, action_index)
             if not self._return_onehot:
                 action = action_index

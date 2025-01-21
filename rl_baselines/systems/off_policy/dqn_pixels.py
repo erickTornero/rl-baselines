@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Union
 from omegaconf import OmegaConf
 import torch
+from torch import nn
 from tensordict.nn import TensorDictModule, TensorDictSequential
 from rl_baselines.common import get_env_action_dim
 from torchrl.envs import EnvBase

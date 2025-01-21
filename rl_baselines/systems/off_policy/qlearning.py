@@ -20,23 +20,26 @@ import cv2
 import rl_baselines
 from .egreedy import QPolicyExplorationSampler, QPolicySampler
 from torchrl.data import ReplayBuffer, LazyTensorStorage
+from rl_baselines.systems.base import RLBaseSystem
+from rl_baselines.common.metric_cummulator import Cummulator
+
 @rl_baselines.register("qlearning-discrete")
-class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
+class QLearningDiscreteSystem(RLBaseSystem):
     def __init__(
         self,
         cfg: OmegaConf,
         qvalues_network: Union[nn.Sequential, nn.Module],
+        qvalues_network_target: Union[nn.Sequential, nn.Module],
         environment: EnvBase,
     ) -> None:
-        pl.LightningModule.__init__(self)
-        SaveUtils.__init__(self, cfg)
+        RLBaseSystem.__init__(self, cfg, environment)
         self.action_spec = environment.action_spec
         self.action_values_module = TensorDictModule(
             qvalues_network,
             in_keys=['observation'], 
             out_keys=['action_values']
         )
-        
+
         self.loss_module = TensorDictModule(
             QLearningLoss(use_onehot_actions=True),
             in_keys=['action_values', 'action', 'Qtarget'],
@@ -68,7 +71,7 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
             self.qsampler_module
         )
         self.target_estimator = TensorDictModule(
-            QTargetEstimator(self.action_values_module.module, self.cfg.system.gamma),
+            QTargetEstimator(qvalues_network_target, self.cfg.system.gamma),
             in_keys=[
                 ('next', 'reward'),
                 ('next', 'observation'),
@@ -76,11 +79,27 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
             ],
             out_keys=['Qtarget']
         )
-        self.env = environment
-        self.automatic_optimization = False
+
+        self.update_target = self.load_update_networks(
+            qvalues_network,
+            qvalues_network_target,
+            self.cfg.system.update_networks
+        )
+
+        self.gradient_update_counter = 0
+        self.agent_selection_counter = 0
+        self.total_frames = 0
+        self.replay_keys =[
+            'observation',
+            'action',
+            ('next', 'reward'),
+            ('next', 'observation'),
+            ('next', 'done'),
+        ]
 
     def on_fit_start(self) -> None:
         self.env = self.env.to(self.device)
+        self.target_estimator.module.action_value_network.to(self.device)
         self.memory_replay = ReplayBuffer(
             storage=LazyTensorStorage(max_size=self.cfg.data.replay_buffer_size, device=self.device),
             batch_size=self.cfg.data.batch_size
@@ -98,19 +117,21 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
         # in reinforce a train step we consider a trajectory
         optimizer = self.optimizers()
         obs_dict = self.env.reset()
-
         cum_rw = 0
         max_episode_length = self.cfg.data.max_trajectory_length
+        log_qloss = 0
+        cumulator = Cummulator()
+
         for t in range(max_episode_length):
             with torch.no_grad():
-                tensordict = self.policy_explore(obs_dict)
-            tensordict = self.env.step(tensordict)
-            self.memory_replay.add(tensordict)
-            done = tensordict['next', 'done']
-            obs_dict = tensordict['next'].clone()
-            reward = obs_dict.pop('reward')
+                tensordict = self.policy_explore(obs_dict.unsqueeze(0)).squeeze(0)
+                cumulator.step(tensordict['action_values'].max())
 
-            if len(self.memory_replay) > self.cfg.data.min_replay_buffer_size:
+            tensordict = self.env.step(tensordict)
+            self.agent_selection_counter += 1
+
+            if ((self.agent_selection_counter % self.cfg.system.grad_update_frequency == 0) \
+                    and (len(self.memory_replay) > self.cfg.data.min_replay_buffer_size)):
                 # train step here
                 batch = self.memory_replay.sample().clone()
                 with torch.no_grad():
@@ -119,74 +140,43 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
                 loss_dict = self.loss_module(batch)
                 optimizer.zero_grad()
                 self.manual_backward(loss_dict.get('qloss').mean())
+                with torch.no_grad():
+                    log_qloss = loss_dict.get('qloss').mean()
                 optimizer.step()
                 self.egreedy_sampler_module.module.step_egreedy()
+                self.gradient_update_counter += 1
 
+                self.update_target()
+
+                    #reward = obs_dict.pop('reward')
+            obs_dict = tensordict["next"].clone()
+            self.memory_replay.add(tensordict.select(*self.replay_keys).clone())
+
+            reward = obs_dict.pop('reward')
             cum_rw += reward
+            done = tensordict['next', 'done']
+            self.total_frames += 1
+
             if done.item():
                 break
 
-        self.log_dict(
+        self.log_dict_with_envname(
             {
-                "Episode Reward": cum_rw
-            }, 
-            prog_bar=True, 
-            on_epoch=True, 
-            on_step=False,
-            batch_size=1
+                "Episode Reward": cum_rw,
+                "Replay Buffer Len": len(self.memory_replay),
+                "qnetwork_loss": log_qloss,
+                "Epsilon egreedy": self.egreedy_sampler_module.module.epsilon,
+                "Action Value Avg": cumulator.mean(),
+                "Total Gradient Updates": self.gradient_update_counter,
+                "Total Agent Selections": self.agent_selection_counter,
+                "Total Target Updates": self.update_target.nupdates,
+                "Total Frames": self.total_frames,
+                "Episode frames": t
+            }
         )
 
     def validation_step(self, batch):
         pass
-
-    def test_rollout(self, save_video: bool=False):
-        obs_dict = self.env.reset()
-        render = self.env._env.render_mode == 'rgb_array'
-        if render:
-            img = self.env.render()
-            self.display_img(img)
-            if save_video:
-                video = cv2.VideoWriter(
-                    self.get_absolute_path('output.mp4'),
-                    cv2.VideoWriter_fourcc(*'mp4v'),
-                    125,
-                    (img.shape[1], img.shape[0]),
-                    #False
-                )
-                video.write(img)
-                #frames.append(img)
-        trajectory = []
-        crw = 0
-        max_episode_steps = self.cfg.data.max_trajectory_length
-        pbar = tqdm(total=max_episode_steps)
-        for istep in range(max_episode_steps):
-            with torch.no_grad():
-                action_dict = self.policy(obs_dict)
-            next_dict = self.env.step(action_dict)
-            trajectory.append(next_dict)
-            obs_dict = next_dict['next'].clone()
-            reward = obs_dict.pop('reward')
-            crw += reward
-            done = next_dict['next', 'done']
-            if render:
-                img = self.env.render()
-                self.display_img(img)
-                if save_video:
-                    #frames.append(img)
-                    video.write(img)
-            pbar.update(1)
-            #import pdb;pdb.set_trace()
-            if done.item():
-                break
-        pbar.close()
-        if save_video:
-            video.release()
-
-        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
-
-    def display_img(self, img):
-        cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(1)
 
     def configure_optimizers(self):
         cfg_optimizer = self.cfg.system.optimizer
@@ -194,28 +184,22 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
         optimizer = optimizer_class(self.action_values_module.module.parameters(), **cfg_optimizer.args)
         return optimizer
 
-    def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu')
-        print(f'Loading state dict from {path}')
-        self.load_state_dict(ckpt['state_dict'])
-
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> QLearningDiscreteSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:
             cfg = config
-        type_network = cfg.system.network.type
-        env = make_custom_envs(**cfg.system.environment)
+        env = RLBaseSystem.load_env_from_cfg(cfg.system.environment)
+        qnetwork = RLBaseSystem.load_network_from_cfg(
+            cfg.system.network,
+            get_env_obs_dim(env),
+            get_env_action_dim(env),
+        )
+        qnetwork_target = RLBaseSystem.load_network_from_cfg(
+            cfg.system.network,
+            get_env_obs_dim(env),
+            get_env_action_dim(env),
+        )
 
-        if type_network == "mlp":
-            
-            network = mlp_builder(
-                get_env_obs_dim(env),
-                get_env_action_dim(env),
-                **cfg.system.network.args,
-            )
-        else:
-            raise NotImplementedError(f"Network Type: {type_network} not implemented!")
-        
-        return cls(cfg, network, env)
+        return cls(cfg, qnetwork, qnetwork_target, env)

@@ -99,7 +99,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         raise NotImplementedError("")
 
     def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu')
+        ckpt = torch.load(path, map_location='cpu', weights_only=False)
         print(f'Loading state dict from {path}')
         # TODO: added strict=False since environment stats is not loaded properly
         # the loader tries to load from env.transform and env._transform, the last one raises missing keys

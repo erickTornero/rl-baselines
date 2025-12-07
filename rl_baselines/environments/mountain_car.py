@@ -7,14 +7,17 @@ from torchrl.data import (
     CompositeSpec,
     BoundedTensorSpec,
     UnboundedContinuousTensorSpec,
-    DiscreteTensorSpec
+    DiscreteTensorSpec,
 )
+
 
 def _make_spec(self, td_params):
     pass
 
+
 def _set_seed(self, tensordict):
     pass
+
 
 def gen_params(g=10.0, batch_size=None) -> TensorDictBase:
     if batch_size is None:
@@ -34,19 +37,12 @@ def gen_params(g=10.0, batch_size=None) -> TensorDictBase:
         td = td.expand(batch_size).contiguous()
     return td
 
-class CustomMountainCarContiuous(EnvBase):
-    metadata = {
 
-    }
+class CustomMountainCarContiuous(EnvBase):
+    metadata = {}
     batch_locked = False
 
-    def __init__(
-        self,
-        td_params=None,
-        seed=None,
-        device="cpu",
-        render: bool=False
-    ):
+    def __init__(self, td_params=None, seed=None, device="cpu", render: bool = False):
         if td_params is None:
             td_params = self.gen_params()
 
@@ -56,42 +52,42 @@ class CustomMountainCarContiuous(EnvBase):
             seed = torch.empty((), dtype=torch.int64).random_().item()
         self.set_seed(seed)
         if render:
-            args_dict = {'render_mode': 'rgb_array'}
+            args_dict = {"render_mode": "rgb_array"}
         else:
             args_dict = {}
-        self._env = gymnasium.make('MountainCarContinuous', **args_dict)
+        self._env = gymnasium.make("MountainCarContinuous", **args_dict)
 
-        self.action_spec =  BoundedTensorSpec(
+        self.action_spec = BoundedTensorSpec(
             self._env.action_space.low,
-            self._env.action_space.high, 
-            shape=self._env.action_space.shape, 
-            device=device, 
+            self._env.action_space.high,
+            shape=self._env.action_space.shape,
+            device=device,
             dtype=torch.float32,
         )
 
         self.full_observation_spec = CompositeSpec(
             observation=BoundedTensorSpec(
-                self._env.observation_space.low, 
-                self._env.observation_space.high
+                self._env.observation_space.low, self._env.observation_space.high
             ),
-            device=device
+            device=device,
         )
 
         self.state_spec = self.observation_spec.clone()
-        self.reward_spec = UnboundedContinuousTensorSpec((1, ), dtype=torch.float32, device=device)
+        self.reward_spec = UnboundedContinuousTensorSpec(
+            (1,), dtype=torch.float32, device=device
+        )
 
         self.full_done_spec = CompositeSpec(
-            done=DiscreteTensorSpec(2, (1, ), device=device, dtype=torch.bool),
+            done=DiscreteTensorSpec(2, (1,), device=device, dtype=torch.bool),
             device=device,
         )
-    
+
     # Helpers: _make_step and gen_params
     gen_params = staticmethod(gen_params)
     _make_spec = _make_spec
 
     # Mandatory methods: _step, _reset and _set_seed
     _set_seed = _set_seed
-
 
     def _reset(self, tensordict):
         batch_size = (
@@ -100,10 +96,10 @@ class CustomMountainCarContiuous(EnvBase):
         if tensordict is None or tensordict.is_empty():
             tensordict = self.gen_params(self.batch_size)
         obs, _ = self._env.reset()
-        return TensorDict({'observation': obs}, batch_size=batch_size).to(self.device)
+        return TensorDict({"observation": obs}, batch_size=batch_size).to(self.device)
 
     def _step(self, tensordict):
-        action = tensordict.get('action')
+        action = tensordict.get("action")
         if isinstance(action, torch.Tensor):
             action = action.cpu().numpy()
         if isinstance(action, np.ndarray):
@@ -112,21 +108,19 @@ class CustomMountainCarContiuous(EnvBase):
                     if len(action) == self.action_spec.shape[0]:
                         action = action[0]
                     else:
-                        raise TypeError("action if ndim=1, it must have 1 or len == discrete dim")
+                        raise TypeError(
+                            "action if ndim=1, it must have 1 or len == discrete dim"
+                        )
                 else:
                     raise TypeError("action has more than 1 dim")
 
         action = np.array([action], np.float32)
 
-        obnew, rw, done, _, _     =   self._env.step(action)
-        out = TensorDict(
-            {
-                'observation': obnew,
-                'reward': rw,
-                'done': done
-            }
-        ).to(self.device)
+        obnew, rw, done, _, _ = self._env.step(action)
+        out = TensorDict({"observation": obnew, "reward": rw, "done": done}).to(
+            self.device
+        )
         return out
-    
+
     def render(self):
         return self._env.render()

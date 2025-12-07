@@ -35,7 +35,7 @@ system:
             out_channels: 32
             kernel_size: 8
             stride: 4
-        - ReLU: 
+        - ReLU:
         - Conv2d:
             in_channels: 32
             out_channels: 64

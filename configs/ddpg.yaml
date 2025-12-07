@@ -41,7 +41,7 @@ system:
       activation_hidden_info:
         type: ReLU
         kwargs: null
-      activation_out_info: 
+      activation_out_info:
         type: Tanh
         kwargs: null
 

@@ -1,5 +1,6 @@
 __modules__ = {}
 __version__ = "0.0.1"
+from . import data, systems
 
 
 def register(name: str):
@@ -13,6 +14,7 @@ def register(name: str):
         return cls
 
     return decorator
+
 
 def find(name: str):
     if ":" in name:
@@ -30,4 +32,8 @@ def find(name: str):
         return NewClass
     return __modules__[name]
 
-from . import data, systems
+
+__all__ = [
+    "data",
+    "systems",
+]

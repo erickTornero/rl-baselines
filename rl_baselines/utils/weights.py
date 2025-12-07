@@ -2,6 +2,7 @@
 from torch import nn
 from typing import Optional, Union
 
+
 class UpdateNetworks:
     def __init__(
         self,
@@ -17,13 +18,14 @@ class UpdateNetworks:
     def init_same(self):
         raise NotImplementedError("")
 
+
 class SoftUpdate(UpdateNetworks):
     def __init__(
         self,
         source_network: nn.Module,
         target_network: nn.Module,
         tau: float,
-        initialize_same_weights: bool=True
+        initialize_same_weights: bool = True,
     ):
         super().__init__(source_network, target_network)
         self.tau = tau
@@ -34,13 +36,15 @@ class SoftUpdate(UpdateNetworks):
     def __call__(self):
         self._soft_update()
 
-    def _soft_update(self, tau: Optional[float]=None):
+    def _soft_update(self, tau: Optional[float] = None):
         tau = self.tau if tau is None else tau
-        for tar_par, par in zip(self.target_network.parameters(), self.source_network.parameters()):
-            tar_par.data.copy_(par.data * tau + tar_par.data * (1.0-tau))
+        for tar_par, par in zip(
+            self.target_network.parameters(), self.source_network.parameters()
+        ):
+            tar_par.data.copy_(par.data * tau + tar_par.data * (1.0 - tau))
 
     def init_same(self):
-        self._soft_update(tau=1.0) # hard update
+        self._soft_update(tau=1.0)  # hard update
 
 
 class HardUpdate(UpdateNetworks):
@@ -49,7 +53,7 @@ class HardUpdate(UpdateNetworks):
         source_network: nn.Module,
         target_network: nn.Module,
         update_frequency: float,
-        initialize_same_weights: bool=True
+        initialize_same_weights: bool = True,
     ):
         super().__init__(source_network, target_network)
         self.update_frequency = update_frequency
@@ -65,8 +69,10 @@ class HardUpdate(UpdateNetworks):
         self.counter += 1
 
     def _hard_update(self):
-        for tar_par, par in zip(self.target_network.parameters(), self.source_network.parameters()):
+        for tar_par, par in zip(
+            self.target_network.parameters(), self.source_network.parameters()
+        ):
             tar_par.data.copy_(par.data)
 
     def init_same(self):
-        self._hard_update() # hard update
+        self._hard_update()  # hard update

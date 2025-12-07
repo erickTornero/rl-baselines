@@ -1,9 +1,10 @@
 import torch
 from typing import Optional
 from tensordict import TensorDictBase
-from rl_baselines.common.preprocessing import DQNPreprocessing, DQNPreprocessing0
+from rl_baselines.common.preprocessing import DQNPreprocessing
 from torchrl.envs import Transform
 from collections import deque
+
 
 class FrameSkipMaxTransform(Transform):
     """A frame-skip transform.
@@ -20,16 +21,16 @@ class FrameSkipMaxTransform(Transform):
     def __init__(
         self,
         frame_skip: int = 1,
-        max_of_last: int=1,
-        in_key_max: str="pixels",
-        out_key_max: str="max_pixels",
+        max_of_last: int = 1,
+        in_key_max: str = "pixels",
+        out_key_max: str = "max_pixels",
     ):
         super().__init__()
         if frame_skip < 1:
             raise ValueError("frame_skip should have a value greater or equal to one.")
         self.frame_skip = frame_skip
         self._last_frames = deque(maxlen=max_of_last)
-        self.in_key_max= in_key_max
+        self.in_key_max = in_key_max
         self.out_key_max = out_key_max
         self.max_of_last = max_of_last
 
@@ -62,22 +63,24 @@ class FrameSkipMaxTransform(Transform):
         tensordict_reset.set(self.out_key_max, self._last_frames[-1].clone())
         return super()._reset(tensordict, tensordict_reset)
 
+
 class CNNPreprocessing(Transform):
     """
-        Compatible with environment transforms of torchrl
-        It follows preprocessing instructions from DQN paper Minh et al (2015)
-        - max from two last frames
-        - compute luminance channel Y
-        - reescale to squared image, tipically [84, 84]
+    Compatible with environment transforms of torchrl
+    It follows preprocessing instructions from DQN paper Minh et al (2015)
+    - max from two last frames
+    - compute luminance channel Y
+    - reescale to squared image, tipically [84, 84]
 
     """
+
     def __init__(
         self,
-        in_keys = "pixels",
-        out_keys = "preprocessed",
-        in_keys_inv = None,
-        out_keys_inv = None,
-        out_size= (84, 84),
+        in_keys="pixels",
+        out_keys="preprocessed",
+        in_keys_inv=None,
+        out_keys_inv=None,
+        out_size=(84, 84),
     ):
         super().__init__(in_keys, out_keys, in_keys_inv, out_keys_inv)
         self.preprocessor = DQNPreprocessing(out_size)
@@ -86,13 +89,15 @@ class CNNPreprocessing(Transform):
         tensordict_reset = self._call(tensordict_reset)
         return super()._reset(tensordict, tensordict_reset)
 
-    def _apply_transform(self, obs: torch.Tensor, last_obs: Optional[torch.Tensor]=None) -> torch.Tensor:
+    def _apply_transform(
+        self, obs: torch.Tensor, last_obs: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         return self.preprocessor(obs, last_obs)
 
     def _call(
         self,
         tensordict: TensorDictBase,
-        last_tensordict: Optional[TensorDictBase]=None,
+        last_tensordict: Optional[TensorDictBase] = None,
     ) -> TensorDictBase:
         """Reads the input tensordict, and for the selected keys, applies the transform.
 
@@ -121,7 +126,7 @@ class CNNPreprocessing(Transform):
                     f"{self}: '{in_key}' not found in tensordict {tensordict}"
                 )
         return tensordict
-    
+
     def _step(
         self, tensordict: TensorDictBase, next_tensordict: TensorDictBase
     ) -> TensorDictBase:
@@ -145,14 +150,15 @@ class CNNPreprocessing(Transform):
         next_tensordict = self._call(next_tensordict, tensordict)
         return next_tensordict
 
+
 class StackTransform(Transform):
     def __init__(
-        self, 
-        in_keys = "preprocessed",
-        out_keys = "observation",
-        in_keys_inv = None,
-        out_keys_inv = None,
-        length=4
+        self,
+        in_keys="preprocessed",
+        out_keys="observation",
+        in_keys_inv=None,
+        out_keys_inv=None,
+        length=4,
     ):
         super().__init__(in_keys, out_keys, in_keys_inv, out_keys_inv)
         self.m = length

@@ -5,25 +5,21 @@ import torch.nn as nn
 import numpy as np
 from numbers import Number
 from typing import Tuple
+
+
 class TrainableNormalLogVar(nn.Module):
     def __init__(self, ndim: int) -> None:
         super().__init__()
         self.max_logvar = torch.nn.Parameter(
-            torch.tensor(
-                1 * np.ones([ndim]),
-                dtype=torch.float32,
-                requires_grad=True
-            )
+            torch.tensor(1 * np.ones([ndim]), dtype=torch.float32, requires_grad=True)
         )
         self.min_logvar = torch.nn.Parameter(
-            torch.tensor(
-                -1 * np.ones([ndim]), 
-                dtype=torch.float32, 
-                requires_grad=True
-            )
+            torch.tensor(-1 * np.ones([ndim]), dtype=torch.float32, requires_grad=True)
         )
-    
-    def __call__(self, example_tensor: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+
+    def __call__(
+        self, example_tensor: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         if example_tensor.ndim > self.min_logvar.ndim:
             batch_size = example_tensor.shape[0]
             min_logvar = self.min_logvar.unsqueeze(0).repeat(batch_size, 1)
@@ -33,6 +29,7 @@ class TrainableNormalLogVar(nn.Module):
             max_logvar = self.max_logvar
         return (min_logvar, max_logvar)
 
+
 class NormalLogVar(ExponentialFamily):
     def __init__(
         self,
@@ -40,13 +37,10 @@ class NormalLogVar(ExponentialFamily):
         logvar: torch.Tensor,
         max_logvar: torch.Tensor,
         min_logvar: torch.Tensor,
-        validate_args=None
+        validate_args=None,
     ):
         self.loc, self.logvar, self.max_logvar, self.min_logvar = broadcast_all(
-            loc,
-            logvar,
-            max_logvar,
-            min_logvar
+            loc, logvar, max_logvar, min_logvar
         )
         if isinstance(loc, Number) and isinstance(logvar, Number):
             batch_shape = torch.Size()
@@ -57,14 +51,14 @@ class NormalLogVar(ExponentialFamily):
     def softplus_raw(self, x: torch.Tensor):
         # Performs the elementwise softplus on the input
         # softplus(x) = 1/B * log(1+exp(B*x))
-        #with torch.no_grad():
+        # with torch.no_grad():
         B = torch.tensor(1, dtype=torch.float)
         return (torch.log(1 + torch.exp(x.mul_(B)))).div_(B)
-    
+
     def log_loss(self, value: torch.Tensor) -> torch.Tensor:
         logvar = self.clamp_logvar(self.logvar)
         inv_var = torch.exp(-logvar)
-        A = torch.mean(torch.sum(((self.loc - value)** 2) * (inv_var), dim=1), dim=0)
+        A = torch.mean(torch.sum(((self.loc - value) ** 2) * (inv_var), dim=1), dim=0)
         B = torch.mean(torch.sum(logvar, dim=1), dim=0)
         return A + B
 

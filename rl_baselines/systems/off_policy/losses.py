@@ -2,6 +2,7 @@ from torchrl.data import TensorSpec
 from ...utils.noise import NoiseProcess
 import torch
 
+
 class QTargetEstimator:
     def __init__(
         self,
@@ -12,25 +13,28 @@ class QTargetEstimator:
         self.action_value_network = action_value_network
 
     def __call__(
-        self, 
-        reward: torch.Tensor, 
-        next_observation: torch.Tensor, 
-        next_done: torch.Tensor
+        self,
+        reward: torch.Tensor,
+        next_observation: torch.Tensor,
+        next_done: torch.Tensor,
     ) -> torch.Tensor:
         action_values = self.action_value_network(next_observation)
         notdone = 1.0 - next_done.to(dtype=torch.float32)
-        return reward + self.gamma * torch.max(action_values, dim=-1, keepdim=True).values * notdone
+        return (
+            reward
+            + self.gamma
+            * torch.max(action_values, dim=-1, keepdim=True).values
+            * notdone
+        )
+
 
 class QLearningLoss:
-    def __init__(
-        self,
-        use_onehot_actions: bool=False
-    ) -> None:
+    def __init__(self, use_onehot_actions: bool = False) -> None:
         self.use_onehot_actions = use_onehot_actions
         self.mse_loss = torch.nn.MSELoss()
 
     def __call__(
-        self, 
+        self,
         action_value: torch.Tensor,
         action: torch.Tensor,
         target_action_values: torch.Tensor,
@@ -41,15 +45,16 @@ class QLearningLoss:
             action_index = action
         chosen_action_values = torch.gather(action_value, -1, action_index)
         loss = self.mse_loss(target_action_values, chosen_action_values)
-        loss = torch.sum((target_action_values - chosen_action_values)**2, dim=-1)
+        loss = torch.sum((target_action_values - chosen_action_values) ** 2, dim=-1)
         return loss
+
 
 class QLearningBellmanClippedLoss:
     def __init__(
         self,
-        use_onehot_actions: bool=False,
-        min_val: float=-1.0,
-        max_val: float=1.0
+        use_onehot_actions: bool = False,
+        min_val: float = -1.0,
+        max_val: float = 1.0,
     ) -> None:
         self.use_onehot_actions = use_onehot_actions
         self.min_val = min_val
@@ -68,13 +73,15 @@ class QLearningBellmanClippedLoss:
         chosen_action_values = torch.gather(action_value, -1, action_index)
         bellman = target_action_values - chosen_action_values
         bellman_clipped = torch.clamp(bellman, self.min_val, self.max_val)
-        loss = torch.sum((bellman_clipped)**2, dim=-1)
+        loss = torch.sum((bellman_clipped) ** 2, dim=-1)
         return loss
+
 
 class QTargetEstimatorContinuous(torch.nn.Module):
     """
-        From ddpg paper
+    From ddpg paper
     """
+
     def __init__(
         self,
         action_value_network_target: torch.nn.Module,
@@ -90,11 +97,13 @@ class QTargetEstimatorContinuous(torch.nn.Module):
         self,
         reward: torch.Tensor,
         next_observation: torch.Tensor,
-        next_done: torch.Tensor
+        next_done: torch.Tensor,
     ) -> torch.Tensor:
         next_action_target = self.policy_network_target(next_observation)
         assert next_action_target.ndim == next_observation.ndim
-        next_state_action = torch.concatenate((next_observation, next_action_target), dim=-1)
+        next_state_action = torch.concatenate(
+            (next_observation, next_action_target), dim=-1
+        )
         qvalues = self.action_value_network_target(next_state_action)
         notdone = 1.0 - next_done.to(dtype=torch.float32)
         return reward + self.gamma * qvalues * notdone
@@ -102,8 +111,9 @@ class QTargetEstimatorContinuous(torch.nn.Module):
 
 class QTargetEstimatorTD3Continuous(torch.nn.Module):
     """
-        From TD3 paper
+    From TD3 paper
     """
+
     def __init__(
         self,
         action_value_network_target_1: torch.nn.Module,
@@ -125,7 +135,7 @@ class QTargetEstimatorTD3Continuous(torch.nn.Module):
         self,
         reward: torch.Tensor,
         next_observation: torch.Tensor,
-        next_done: torch.Tensor
+        next_done: torch.Tensor,
     ) -> torch.Tensor:
         next_action_target = self.policy_network_target(next_observation)
         batch_size = None
@@ -134,21 +144,29 @@ class QTargetEstimatorTD3Continuous(torch.nn.Module):
         elif len(next_done) > 1:
             batch_size = len(next_done)
         next_action_target = next_action_target + self.noise_process(batch_size)
-        next_action_target = torch.clip(next_action_target, self.action_spec.low, self.action_spec.high)
+        next_action_target = torch.clip(
+            next_action_target, self.action_spec.low, self.action_spec.high
+        )
         assert next_action_target.ndim == next_observation.ndim
-        next_state_action = torch.concatenate((next_observation, next_action_target), dim=-1)
+        next_state_action = torch.concatenate(
+            (next_observation, next_action_target), dim=-1
+        )
         qvalues_1 = self.action_value_network_target_1(next_state_action)
         qvalues_2 = self.action_value_network_target_2(next_state_action)
         qvalues = torch.min(qvalues_1, qvalues_2)
         notdone = 1.0 - next_done.to(dtype=torch.float32)
         return reward + self.gamma * qvalues * notdone
 
+
 class DDPGCriticLoss:
     def __init__(self):
         self.mse_fn = torch.nn.MSELoss()
 
-    def __call__(self, state_action_value: torch.Tensor, state_action_value_target: torch.Tensor):
-        return torch.sum((state_action_value_target - state_action_value)**2, dim=-1)
+    def __call__(
+        self, state_action_value: torch.Tensor, state_action_value_target: torch.Tensor
+    ):
+        return torch.sum((state_action_value_target - state_action_value) ** 2, dim=-1)
+
 
 class TD3CriticLoss:
     def __init__(self):
@@ -158,10 +176,10 @@ class TD3CriticLoss:
         self,
         state_action_value_1: torch.Tensor,
         state_action_value_2: torch.Tensor,
-        state_action_value_target: torch.Tensor
+        state_action_value_target: torch.Tensor,
     ):
-        q1 = torch.sum((state_action_value_target - state_action_value_1)**2, dim=-1)
-        q2 = torch.sum((state_action_value_target - state_action_value_2)**2, dim=-1)
+        q1 = torch.sum((state_action_value_target - state_action_value_1) ** 2, dim=-1)
+        q2 = torch.sum((state_action_value_target - state_action_value_2) ** 2, dim=-1)
         return q1 + q2
 
 
@@ -170,9 +188,11 @@ class DDPGPolicyLoss:
         self.state_action_value_network = state_action_value_network
 
     def __call__(self, state: torch.tensor, action_policy: torch.Tensor):
-        #self._deactivate_sa_gradients()
-        Q = self.state_action_value_network(torch.concat((state, action_policy), dim=-1))
-        #self._activate_sa_gradients()
+        # self._deactivate_sa_gradients()
+        Q = self.state_action_value_network(
+            torch.concat((state, action_policy), dim=-1)
+        )
+        # self._activate_sa_gradients()
         return -Q
 
     def _deactivate_sa_gradients(self):
@@ -183,19 +203,17 @@ class DDPGPolicyLoss:
         for p in self.state_action_value_network.parameters():
             p.requires_grad = True
 
+
 class TD3PolicyLoss:
-    def __init__(
-        self,
-        state_action_value_network: torch.nn.Module
-    ):
+    def __init__(self, state_action_value_network: torch.nn.Module):
         self.state_action_value_network = state_action_value_network
 
-    def __call__(self,
-        state: torch.tensor,
-        action_policy: torch.Tensor
-    ):
-        Q = self.state_action_value_network(torch.concat((state, action_policy), dim=-1))
+    def __call__(self, state: torch.tensor, action_policy: torch.Tensor):
+        Q = self.state_action_value_network(
+            torch.concat((state, action_policy), dim=-1)
+        )
         return -Q
+
 
 class DDPGLoss:
     def __init__(self, qnetwork: torch.nn.Module):
@@ -205,6 +223,6 @@ class DDPGLoss:
         self,
         state_action_value: torch.Tensor,
         qtarget: torch.Tensor,
-        policy_action: torch.Tensor
+        policy_action: torch.Tensor,
     ):
         pass

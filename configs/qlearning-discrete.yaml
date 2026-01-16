@@ -12,10 +12,18 @@ data:
 system:
   type: "qlearning-discrete"
   gamma: 0.99
+  grad_update_frequency: 1
   egreedy:
     epsilon_init: 1.0
     epsilon_end: 0.1
     annealing_steps: 1000
+
+  update_networks:
+    type: "hard-update"
+    args:
+      update_frequency: 100
+      initialize_same_weights: True
+
   network:
     type: "mlp"
     args:

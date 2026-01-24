@@ -4,3 +4,4 @@
 *.pckl
 *.vscode*
 *outputs*
+dist/*

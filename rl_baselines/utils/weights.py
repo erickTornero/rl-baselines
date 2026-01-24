@@ -1,5 +1,4 @@
 # util functions to copy or make soft weights update in networks
-from abc import abstractmethod
 from typing import Optional, Union
 
 from torch import nn
@@ -14,11 +13,9 @@ class UpdateNetworks:
         self.source_network = source_network
         self.target_network = target_network
 
-    @abstractmethod
     def __call__(self) -> None:
         raise NotImplementedError("")
 
-    @abstractmethod
     def init_same(self) -> None:
         raise NotImplementedError("")
 

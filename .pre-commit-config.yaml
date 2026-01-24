@@ -50,7 +50,7 @@ repos:
       - types-requests
       - types-python-dateutil
       - pydantic
-      args: [--ignore-missing-imports]
+      args: [--strict, --ignore-missing-imports]
       files: ^rl_baselines/
 
     # Documentation checks

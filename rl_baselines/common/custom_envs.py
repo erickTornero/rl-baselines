@@ -1,19 +1,21 @@
-import torch
+from copy import deepcopy
 from typing import Optional, Union
+
+import torch
 from omegaconf import DictConfig, OmegaConf
-import rl_baselines.environments as cenvs
+from torch.nn.parameter import UninitializedBuffer
+from torchrl.data import BoundedTensorSpec, OneHotDiscreteTensorSpec, TensorSpec
 from torchrl.envs import (
-    EnvBase,
     Compose,
-    TransformedEnv,
     DoubleToFloat,
     EndOfLifeTransform,
+    EnvBase,
+    TransformedEnv,
 )
-from torchrl.data import OneHotDiscreteTensorSpec, BoundedTensorSpec, TensorSpec
-from torch.nn.parameter import UninitializedBuffer
-from copy import deepcopy
+
 import rl_baselines.common.custom_env_transforms as ctransforms
 import rl_baselines.common.wrap_envs as cwrappers
+import rl_baselines.environments as cenvs
 
 
 def make_custom_envs(

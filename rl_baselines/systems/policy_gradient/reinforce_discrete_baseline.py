@@ -1,17 +1,20 @@
 from __future__ import annotations
+
 from typing import Union
-from omegaconf import OmegaConf
+
 import torch
-from torch import nn, optim
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from rl_baselines.common import get_env_obs_dim, get_env_action_dim
+from torch import nn, optim
 from torchrl.envs import EnvBase
-from .action_sampler import CategoricalSampler
-from .losses import ReinforceWithBaselineLoss
 
 import rl_baselines
+from rl_baselines.common import get_env_action_dim, get_env_obs_dim
 from rl_baselines.systems.base import RLBaseSystem
+
+from .action_sampler import CategoricalSampler
+from .losses import ReinforceWithBaselineLoss
 
 
 @rl_baselines.register("reinforce-discrete-baseline")

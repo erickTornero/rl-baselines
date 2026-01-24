@@ -1,7 +1,9 @@
 from __future__ import annotations
-import torch
-from typing import Optional, Union
+
 import math
+from typing import Optional, Union
+
+import torch
 
 
 class NoiseProcess:

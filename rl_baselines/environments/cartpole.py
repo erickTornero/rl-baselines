@@ -1,15 +1,15 @@
-import torch
 import gymnasium
 import numpy as np
-from torchrl.envs import EnvBase
+import torch
 from tensordict import TensorDict, TensorDictBase
 from torchrl.data import (
-    OneHotDiscreteTensorSpec,
-    CompositeSpec,
     BoundedTensorSpec,
-    UnboundedContinuousTensorSpec,
+    CompositeSpec,
     DiscreteTensorSpec,
+    OneHotDiscreteTensorSpec,
+    UnboundedContinuousTensorSpec,
 )
+from torchrl.envs import EnvBase
 
 
 def _make_spec(self, td_params):

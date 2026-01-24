@@ -1,8 +1,10 @@
 from __future__ import annotations
+
+from typing import Callable, Optional, Union
+
 import torch
 from torch.distributions import Categorical
-from torchrl.data import TensorSpec, OneHotDiscreteTensorSpec
-from typing import Callable, Optional, Union
+from torchrl.data import OneHotDiscreteTensorSpec, TensorSpec
 
 
 class CategoricalSampler:

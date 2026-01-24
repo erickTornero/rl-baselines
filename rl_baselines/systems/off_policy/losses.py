@@ -1,6 +1,7 @@
-from torchrl.data import TensorSpec
-from ...utils.noise import NoiseProcess
 import torch
+from torchrl.data import TensorSpec
+
+from ...utils.noise import NoiseProcess
 
 
 class QTargetEstimator:

@@ -1,9 +1,10 @@
-import torch
-from torchvision import transforms
-from typing import Optional, Tuple, Union
 from collections import deque
-from torch import nn
+from typing import Optional, Tuple, Union
+
+import torch
 import torchvision.transforms.functional as F
+from torch import nn
+from torchvision import transforms
 
 
 class Preprocessing:
@@ -149,9 +150,9 @@ class StackObservation:
 
 
 if __name__ == "__main__":
-    from torchrl.envs import GymEnv
-    from tensordict import TensorDict
     import cv2
+    from tensordict import TensorDict
+    from torchrl.envs import GymEnv
 
     preprocesor = DQNPreprocessing(out_size=(128, 128))
     preprocesor2 = DQNPreprocessing(out_size=(128, 128), interpolation="bilinear")

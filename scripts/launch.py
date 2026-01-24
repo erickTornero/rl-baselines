@@ -1,11 +1,13 @@
+import os
 import sys
 from os.path import relpath
-import os
-from omegaconf import OmegaConf
+
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
-from pytorch_lightning.utilities import rank_zero_only
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
+from pytorch_lightning.utilities import rank_zero_only
+
 import rl_baselines
 
 if __name__ == "__main__":

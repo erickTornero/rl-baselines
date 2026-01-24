@@ -1,23 +1,25 @@
 from __future__ import annotations
-from omegaconf import DictConfig, OmegaConf
-import torch
-from torch import nn
-from tensordict import TensorDict
-from tqdm import tqdm
-from rl_baselines.common import mlp_builder, parse_env_cfg, init_env_stats, cnn_dqn
-from rl_baselines.utils.save_utils import SaveUtils
-from torchrl.envs import EnvBase
-import pytorch_lightning as pl
-from typing import Union, Optional
-import cv2
+
 from collections import deque
-from typing import Dict
+from typing import Dict, Optional, Union
+
+import cv2
+import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
+from torch import nn
+from torchrl.envs import EnvBase
+from tqdm import tqdm
+
+from rl_baselines.common import cnn_dqn, init_env_stats, mlp_builder, parse_env_cfg
 from rl_baselines.common.preprocessing import (
     DQNPreprocessing,
-    StackObservation,
     Preprocessing,
+    StackObservation,
 )
-from rl_baselines.utils.weights import UpdateNetworks, SoftUpdate, HardUpdate
+from rl_baselines.utils.save_utils import SaveUtils
+from rl_baselines.utils.weights import HardUpdate, SoftUpdate, UpdateNetworks
 
 
 class RLBaseSystem(pl.LightningModule, SaveUtils):

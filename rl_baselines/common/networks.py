@@ -1,7 +1,8 @@
-from typing import Any, Callable, Optional, Dict, Union, List
-import torch.nn as nn
-import torch
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import torch
+import torch.nn as nn
 
 
 @dataclass

@@ -1,7 +1,8 @@
 # util functions to copy or make soft weights update in networks
 from abc import abstractmethod
-from torch import nn
 from typing import Optional, Union
+
+from torch import nn
 
 
 class UpdateNetworks:

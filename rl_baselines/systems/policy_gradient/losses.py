@@ -1,6 +1,8 @@
-import torch
 from typing import Tuple, Union
+
+import torch
 from torch import nn
+
 from rl_baselines.common.distributions import NormalLogVar
 
 

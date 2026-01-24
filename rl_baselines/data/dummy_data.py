@@ -1,7 +1,9 @@
-from omegaconf import OmegaConf
 from typing import Iterator
-from torch.utils.data import DataLoader, IterableDataset
+
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
+from torch.utils.data import DataLoader, IterableDataset
+
 import rl_baselines
 
 

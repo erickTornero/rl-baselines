@@ -1,6 +1,6 @@
 import torch
 from torch.distributions import Categorical, Normal
-from torchrl.data import TensorSpec, OneHotDiscreteTensorSpec
+from torchrl.data import OneHotDiscreteTensorSpec, TensorSpec
 
 
 class CategoricalSampler:

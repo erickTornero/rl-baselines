@@ -1,9 +1,11 @@
-import torch
-from typing import Optional
-from tensordict import TensorDictBase
-from rl_baselines.common.preprocessing import DQNPreprocessing
-from torchrl.envs import Transform
 from collections import deque
+from typing import Optional
+
+import torch
+from tensordict import TensorDictBase
+from torchrl.envs import Transform
+
+from rl_baselines.common.preprocessing import DQNPreprocessing
 
 
 class FrameSkipMaxTransform(Transform):

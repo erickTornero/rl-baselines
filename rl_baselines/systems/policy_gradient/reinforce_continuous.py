@@ -1,17 +1,21 @@
 from __future__ import annotations
+
 from typing import Union
-from omegaconf import OmegaConf
+
 import torch
-from torch import nn, optim
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from rl_baselines.common import get_env_obs_dim, get_env_action_dim
+from torch import nn, optim
+from torchrl.data import LazyTensorStorage, ReplayBuffer
 from torchrl.envs import EnvBase
+
+import rl_baselines
+from rl_baselines.common import get_env_action_dim, get_env_obs_dim
+from rl_baselines.systems.base import RLBaseSystem
+
 from .action_sampler import ContinuousSampler
 from .losses import ReinforceContinuousLoss
-import rl_baselines
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-from rl_baselines.systems.base import RLBaseSystem
 
 
 @rl_baselines.register("reinforce-continuous")

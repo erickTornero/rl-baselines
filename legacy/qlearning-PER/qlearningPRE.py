@@ -1,12 +1,13 @@
+import pickle
+import random
+from collections import deque
+
 import gym
 import numpy as np
-import random
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-from collections import deque
-import pickle
+import torch.optim as optim
 
 ID_EXECUTION = "XS004"
 TRAINING = True

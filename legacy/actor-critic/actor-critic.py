@@ -1,13 +1,14 @@
 # Implementation of Actor-Critic algorithm:
 # Based on the proposal of Richard Sutton, pag. 332
+import pickle
+from collections import deque
+
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
-from collections import deque
-import pickle
 
 ID_EXECUTION = "XS002-AC"
 TRAINING = True

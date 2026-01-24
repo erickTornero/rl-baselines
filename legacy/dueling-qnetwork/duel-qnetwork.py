@@ -1,11 +1,12 @@
+import pickle
+import random
+from collections import deque
+
 import gym
 import numpy as np
-import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from collections import deque
-import pickle
 
 ID_EXECUTION = "XS001-DUEL"
 TRAINING = True

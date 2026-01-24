@@ -1,20 +1,24 @@
 from __future__ import annotations
+
+import math
 from typing import Union
-from omegaconf import OmegaConf
+
 import torch
-from torch import nn, optim
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from rl_baselines.common import get_env_obs_dim, get_env_action_dim
+from torch import nn, optim
+from torchrl.data import LazyTensorStorage, ReplayBuffer
 from torchrl.envs import EnvBase
+from torchrl.objectives.value import GAE
+
+import rl_baselines
+from rl_baselines.common import get_env_action_dim, get_env_obs_dim
+from rl_baselines.systems.base import RLBaseSystem
+
 from .action_sampler import CategoricalSampler
 from .losses import PPOLoss
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-import rl_baselines
-from rl_baselines.systems.base import RLBaseSystem
 from .modules import TargetEstimator, TDError
-import math
-from torchrl.objectives.value import GAE
 
 
 @rl_baselines.register("ppo-discrete")

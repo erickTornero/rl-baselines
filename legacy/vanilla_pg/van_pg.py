@@ -1,13 +1,14 @@
 # Implementation of reinforce algorithm:
 # Based on the proposal of Richard Sutton
+import pickle
+from collections import deque
+
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
-from collections import deque
-import pickle
 
 ID_EXECUTION = "XS003-VPG"
 TRAINING = True

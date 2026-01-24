@@ -1,8 +1,10 @@
 from __future__ import annotations
-import torch
+
 from typing import Union
-from torchrl.envs import GymEnv, TransformedEnv, EnvBase
+
+import torch
 from tensordict import TensorDict
+from torchrl.envs import EnvBase, GymEnv, TransformedEnv
 
 
 class NoopEnvironment(EnvBase):

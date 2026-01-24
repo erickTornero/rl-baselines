@@ -1,20 +1,23 @@
 from __future__ import annotations
-from omegaconf import OmegaConf
+
 from typing import Union
-from torch import nn
-from torchrl.envs import EnvBase
-from rl_baselines.systems.base import RLBaseSystem
-from tensordict.nn import TensorDictModule, TensorDictSequential
-from .sampler import ContinuousExplorationTD3Sampler, ActionContinuousClamper
+
 import torch
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-from .losses import QTargetEstimatorTD3Continuous, TD3CriticLoss, TD3PolicyLoss
+from omegaconf import OmegaConf
+from tensordict.nn import TensorDictModule, TensorDictSequential
+from torch import nn, optim
+from torchrl.data import LazyTensorStorage, ReplayBuffer
+from torchrl.envs import EnvBase
+
 import rl_baselines
-from rl_baselines.utils.weights import SoftUpdate
 from rl_baselines.common.custom_envs import get_env_action_dim, get_env_obs_dim
-from torch import optim
-from rl_baselines.utils.noise import NormalNoise, NormalClampedNoise
 from rl_baselines.common.networks import init_final_linear_layer
+from rl_baselines.systems.base import RLBaseSystem
+from rl_baselines.utils.noise import NormalClampedNoise, NormalNoise
+from rl_baselines.utils.weights import SoftUpdate
+
+from .losses import QTargetEstimatorTD3Continuous, TD3CriticLoss, TD3PolicyLoss
+from .sampler import ActionContinuousClamper, ContinuousExplorationTD3Sampler
 
 
 @rl_baselines.register("td3")

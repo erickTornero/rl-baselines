@@ -1,25 +1,29 @@
 from __future__ import annotations
+
 from typing import Union
-from omegaconf import OmegaConf
+
+import cv2
+import pytorch_lightning as pl
 import torch
-from torch import nn, optim
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
+from torch import nn, optim
+from torchrl.data import LazyTensorStorage, ReplayBuffer
+from torchrl.envs import EnvBase
 from tqdm import tqdm
+
+import rl_baselines
 from rl_baselines.common import (
-    mlp_builder,
-    make_custom_envs,
-    get_env_obs_dim,
     get_env_action_dim,
+    get_env_obs_dim,
+    make_custom_envs,
+    mlp_builder,
 )
 from rl_baselines.utils.save_utils import SaveUtils
-from torchrl.envs import EnvBase
-from .losses import QLearningLoss, QTargetEstimator
-import pytorch_lightning as pl
-import cv2
-import rl_baselines
+
 from .egreedy import QPolicyExplorationSampler, QPolicySampler
-from torchrl.data import ReplayBuffer, LazyTensorStorage
+from .losses import QLearningLoss, QTargetEstimator
 
 
 @rl_baselines.register("qlearning-discrete")

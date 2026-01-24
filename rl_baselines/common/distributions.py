@@ -1,10 +1,11 @@
-from torch.distributions import ExponentialFamily
-from torch.distributions.utils import broadcast_all
-import torch
-import torch.nn as nn
-import numpy as np
 from numbers import Number
 from typing import Tuple
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.distributions import ExponentialFamily
+from torch.distributions.utils import broadcast_all
 
 
 class TrainableNormalLogVar(nn.Module):

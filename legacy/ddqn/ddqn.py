@@ -1,19 +1,18 @@
-import gym
 import random
 
 # Deque to memory replay
 from collections import deque
+
+# Import CV to preprocess image
+import cv2
+import gym
+import numpy as np
 
 # Pytorch modules
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
-# Import CV to preprocess image
-import cv2
-
-import numpy as np
 
 TARGET_UPDATE = 10000
 BATCH_SIZE = 32

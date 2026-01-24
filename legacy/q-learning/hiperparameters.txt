@@ -20,7 +20,7 @@ LEN_DECAYING        =   50000.0
 
 optimizer       =   optim.Adam(qlearner.parameters(), lr=LEARNING_RATE)
 
-NETWORK:  
+NETWORK:
 class SimpleMLP(nn.Module):
     def __init__(self, space_n, action_n):
         super(SimpleMLP, self).__init__()

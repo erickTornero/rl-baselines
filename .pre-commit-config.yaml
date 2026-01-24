@@ -1,0 +1,72 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        stages: [pre-commit]
+      - id: check-yaml
+        stages: [pre-commit]
+      - id: check-json
+        stages: [pre-commit]
+      - id: check-toml
+        stages: [pre-commit]
+      - id: check-added-large-files
+        args: ['--maxkb=2000']
+      - id: check-merge-conflict
+        stages: [pre-commit]
+      - id: check-case-conflict
+        stages: [pre-commit]
+      - id: check-docstring-first
+        stages: [pre-commit]
+      - id: debug-statements
+        stages: [pre-commit, pre-push]
+      - id: mixed-line-ending
+        stages: [pre-commit]
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+    # Ruff for fast Python linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+    - id: ruff
+      args: [--fix]
+      exclude: ^legacy/.*
+    - id: ruff-format
+      exclude: |
+        (?x)^(
+          legacy/.*
+        )$
+    # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+    - id: mypy
+      additional_dependencies:
+      - types-PyYAML
+      - types-requests
+      - types-python-dateutil
+      - pydantic
+      args: [--strict, --ignore-missing-imports]
+      files: ^rl_baselines/
+
+    # Documentation checks
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+    - id: python-use-type-annotations
+    - id: python-check-blanket-noqa
+    - id: python-check-blanket-type-ignore
+    - id: rst-backticks
+    - id: rst-directive-colons
+    - id: rst-inline-touching-normal
+
+    # Additional Python code quality
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+    - id: isort
+      args: [--profile, black, --line-length, '88']

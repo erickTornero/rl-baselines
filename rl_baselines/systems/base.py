@@ -1,25 +1,26 @@
 from __future__ import annotations
-from omegaconf import DictConfig, OmegaConf
-import torch
-from torch import nn
-from tensordict import TensorDict
-from tqdm import tqdm
-from rl_baselines.common import (
-    mlp_builder,
-    parse_env_cfg,
-    init_env_stats,
-    cnn_dqn
-)
-from rl_baselines.common.custom_envs import parse_env_cfg
-from rl_baselines.utils.save_utils import SaveUtils
-from torchrl.envs import EnvBase
-import pytorch_lightning as pl
-from typing import Union, Optional
-import cv2
+
 from collections import deque
-from typing import Dict
-from rl_baselines.common.preprocessing import DQNPreprocessing, StackObservation, Preprocessing
-from rl_baselines.utils.weights import UpdateNetworks, SoftUpdate, HardUpdate
+from typing import Dict, Optional, Union
+
+import cv2
+import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
+from torch import nn
+from torchrl.envs import EnvBase
+from tqdm import tqdm
+
+from rl_baselines.common import cnn_dqn, init_env_stats, mlp_builder, parse_env_cfg
+from rl_baselines.common.preprocessing import (
+    DQNPreprocessing,
+    Preprocessing,
+    StackObservation,
+)
+from rl_baselines.utils.save_utils import SaveUtils
+from rl_baselines.utils.weights import HardUpdate, SoftUpdate, UpdateNetworks
+
 
 class RLBaseSystem(pl.LightningModule, SaveUtils):
     def __init__(
@@ -32,14 +33,16 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
 
         self.env = environment
         self.automatic_optimization = False
-        self.cum_rewards = deque(maxlen=10)#cfg.checkpoint.average_last_k_episodes)
+        self.cum_rewards: deque = deque(
+            maxlen=10
+        )  # cfg.checkpoint.average_last_k_episodes)
 
     def on_fit_start(self) -> None:
         self.env = self.env.to(self.device)
 
-    def forward(self, batch) -> TensorDict :
+    def forward(self, batch) -> TensorDict:
         raise NotImplementedError("")
-        #pass#return self.policy_module(batch)
+        # pass#return self.policy_module(batch)
 
     def training_step(self, batch, batch_idx):
         raise NotImplementedError("")
@@ -47,24 +50,24 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
     def validation_step(self, batch):
         pass
 
-    def test_rollout(self, save_video: bool=False):
+    def test_rollout(self, save_video: bool = False):
         obs_dict = self.env.reset()
-        render = self.env._env.render_mode == 'rgb_array'
+        render = self.env._env.render_mode == "rgb_array"
         if render:
             img = self.env.render()
             self.display_img(img)
             if save_video:
                 video = cv2.VideoWriter(
-                    self.get_absolute_path('output.mp4'),
-                    cv2.VideoWriter_fourcc(*'mp4v'),
+                    self.get_absolute_path("output.mp4"),
+                    cv2.VideoWriter_fourcc(*"mp4v"),
                     125,
                     (img.shape[1], img.shape[0]),
-                    #False
+                    # False
                 )
                 video.write(img)
-                #frames.append(img)
+                # frames.append(img)
         trajectory = []
-        crw = 0
+        crw: torch.Tensor | int = 0
         max_episode_steps = self.cfg.data.max_trajectory_length
         pbar = tqdm(total=max_episode_steps)
         for istep in range(max_episode_steps):
@@ -72,15 +75,15 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
                 action_dict = self.policy(obs_dict.unsqueeze(0)).squeeze(0)
             next_dict = self.env.step(action_dict)
             trajectory.append(next_dict)
-            obs_dict = next_dict['next'].clone()
-            reward = obs_dict.pop('reward')
+            obs_dict = next_dict["next"].clone()
+            reward = obs_dict.pop("reward")
             crw += reward
-            done = next_dict['next', 'done']
+            done = next_dict["next", "done"]
             if render:
                 img = self.env.render()
                 self.display_img(img)
                 if save_video:
-                    #frames.append(img)
+                    # frames.append(img)
                     video.write(img)
             pbar.update(1)
             if done.item():
@@ -89,36 +92,51 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         if save_video:
             video.release()
 
-        print(f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}")
+        if isinstance(crw, torch.Tensor):
+            crw = crw.item()
+        print(
+            f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw:.2f}"
+        )
 
     def display_img(self, img):
-        cv2.imshow(f'Reinforce Discrete', img)
-        k = cv2.waitKey(1)
+        cv2.imshow("Reinforce Discrete", img)
+        _ = cv2.waitKey(1)
 
     def configure_optimizers(self):
         raise NotImplementedError("")
 
     def load(self, path: str):
-        ckpt = torch.load(path, map_location='cpu', weights_only=False)
-        print(f'Loading state dict from {path}')
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        print(f"Loading state dict from {path}")
         # TODO: added strict=False since environment stats is not loaded properly
         # the loader tries to load from env.transform and env._transform, the last one raises missing keys
-        messages = self.load_state_dict(ckpt['state_dict'], strict=False)
+        messages = self.load_state_dict(ckpt["state_dict"], strict=False)
         # a simple patch to properly load stats
         self.load_env_stats_patch(ckpt)
         if len(messages.missing_keys) > 0:
-            print('-'*20 + "\nMissing keys in checkpoint\n-" + '\n-'.join(messages.missing_keys))
-            print('Make sure it belongs only to base environments otherwise it may inccur in an error\n')
+            print(
+                "-" * 20
+                + "\nMissing keys in checkpoint\n-"
+                + "\n-".join(messages.missing_keys)
+            )
+            print(
+                "Make sure it belongs only to base environments otherwise it may inccur in an error\n"
+            )
         if len(messages.unexpected_keys) > 0:
-            print('Unexpected keys in checkpoint\n-' + '\n-'.join(messages.unexpected_keys) + '\n' + '-'*20)
+            print(
+                "Unexpected keys in checkpoint\n-"
+                + "\n-".join(messages.unexpected_keys)
+                + "\n"
+                + "-" * 20
+            )
 
     def load_env_stats_patch(self, ckpt):
         env_state_dict = {}
-        for name in ckpt['state_dict'].keys():
-            if name.find('env.') == 0:
-                name_key = name.replace('env.', '', 1)
-                name_key = name_key.replace('.transforms.', '_transform.transforms.', 1)
-                env_state_dict[name_key] = ckpt['state_dict'][name]
+        for name in ckpt["state_dict"].keys():
+            if name.find("env.") == 0:
+                name_key = name.replace("env.", "", 1)
+                name_key = name_key.replace(".transforms.", "_transform.transforms.", 1)
+                env_state_dict[name_key] = ckpt["state_dict"][name]
 
         if len(env_state_dict) > 0:
             self.env.load_state_dict(env_state_dict)
@@ -127,11 +145,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         envname = self.cfg.system.environment.name
         log_dict = {f"{envname}/{k}": v for k, v in log_dict.items()}
         self.log_dict(
-            log_dict,
-            prog_bar=True, 
-            on_epoch=True, 
-            on_step=False,
-            batch_size=1
+            log_dict, prog_bar=True, on_epoch=True, on_step=False, batch_size=1
         )
 
     @staticmethod
@@ -142,9 +156,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
 
     @staticmethod
     def load_network_from_cfg(
-        network_cfg: OmegaConf,
-        input_dim: int,
-        output_dim: int
+        network_cfg: OmegaConf, input_dim: int, output_dim: int
     ) -> nn.Module:
         if network_cfg.type == "mlp":
             network = mlp_builder(
@@ -158,24 +170,22 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
                 network_cfg.args.layers,
             )
         else:
-            raise NotImplementedError(f"Network Type: {network_cfg.type} not implemented!")
+            raise NotImplementedError(
+                f"Network Type: {network_cfg.type} not implemented!"
+            )
         return network
 
     @staticmethod
-    def load_preprocessor(
-        preprocess_cfg: OmegaConf
-    ) -> Optional[Preprocessing]:
-        if preprocess_cfg.type == 'DQNPreprocessing':
+    def load_preprocessor(preprocess_cfg: OmegaConf) -> Optional[Preprocessing]:
+        if preprocess_cfg.type == "DQNPreprocessing":
             preprocessor = DQNPreprocessing(**preprocess_cfg.args)
         else:
             raise NotImplementedError("")
         return preprocessor
 
     @staticmethod
-    def load_stackruntime(
-        stack_cfg: OmegaConf
-    ) -> Optional[StackObservation]:
-        if stack_cfg.type == 'StackObservation':
+    def load_stackruntime(stack_cfg: OmegaConf) -> Optional[StackObservation]:
+        if stack_cfg.type == "StackObservation":
             stack = StackObservation(**stack_cfg.args)
         else:
             raise NotImplementedError("")
@@ -185,20 +195,13 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
     def load_update_networks(
         source_network: Union[nn.Module, nn.Sequential],
         target_network: Union[nn.Module, nn.Sequential],
-        update_cfg: OmegaConf
+        update_cfg: OmegaConf,
     ) -> Optional[UpdateNetworks]:
+        update: SoftUpdate | HardUpdate | None = None
         if update_cfg.type == "soft-update":
-            update = SoftUpdate(
-                source_network,
-                target_network,
-                **update_cfg.args
-            )
+            update = SoftUpdate(source_network, target_network, **update_cfg.args)
         elif update_cfg.type == "hard-update":
-            update = HardUpdate(
-                source_network,
-                target_network,
-                **update_cfg.args
-            )
+            update = HardUpdate(source_network, target_network, **update_cfg.args)
         else:
             raise NotImplementedError(f"not supported <{update_cfg.type}>")
         return update

@@ -1,7 +1,9 @@
-from omegaconf import OmegaConf
 import os
-from datetime import datetime
 import uuid
+from datetime import datetime
+
+from omegaconf import OmegaConf
+
 
 class SaveUtils:
     def __init__(self, cfg: OmegaConf) -> None:
@@ -24,7 +26,7 @@ class SaveUtils:
     def get_absolute_path(self, name_file: str):
         return os.path.join(self.cfg.project_folder, name_file)
 
-    #TODO: val predictions hardcoded
+    # TODO: val predictions hardcoded
     def save_text(self, name_file: str, text: str):
         path = self.get_absolute_path(os.path.join("val_predictions", name_file))
         with open(path, "w") as fp:

@@ -1,34 +1,37 @@
 from __future__ import annotations
-import torch
+
 from typing import Union
-from torchrl.envs import GymEnv, TransformedEnv, EnvBase
+
+import torch
 from tensordict import TensorDict
+from torchrl.envs import EnvBase, GymEnv, TransformedEnv
+
 
 class NoopEnvironment(EnvBase):
     def __init__(
-        self,
-        env: Union[GymEnv, TransformedEnv],
-        noop_action_max: int,
-        *args,
-        **kwargs
+        self, env: Union[GymEnv, TransformedEnv], noop_action_max: int, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self._env = env
-        self.noop_action_index = env.unwrapped.get_action_meanings().index('NOOP') if 'NOOP' in env.unwrapped.get_action_meanings() else -1
+        self.noop_action_index = (
+            env.unwrapped.get_action_meanings().index("NOOP")
+            if "NOOP" in env.unwrapped.get_action_meanings()
+            else -1
+        )
         self.noop_action_max = noop_action_max
 
     @property
     def env(self):
         return self._env
-    
+
     def to(self, device: torch.device) -> NoopEnvironment:
         super().to(device)
         self._env = self._env.to(device)
         return self
-    
+
     def render(self):
         return self._env.render()
-    
+
     @property
     def unwrapped(self):
         return self._env.unwrapped
@@ -42,7 +45,7 @@ class NoopEnvironment(EnvBase):
                 obs = self._step(obs)
                 obs = obs["next"]
         return obs
-    
+
     def step(self, tensordict: TensorDict) -> TensorDict:
         return self._step(tensordict)
 
@@ -60,23 +63,24 @@ class NoopEnvironment(EnvBase):
 
 class NoopFiringResetEnvironment(NoopEnvironment):
     """
-        Apply N noop actions and 1 firing action at reset
+    Apply N noop actions and 1 firing action at reset
     """
+
     def __init__(
-        self,
-        env: Union[GymEnv, TransformedEnv],
-        noop_action_max: int,
-        *args,
-        **kwargs
+        self, env: Union[GymEnv, TransformedEnv], noop_action_max: int, *args, **kwargs
     ):
         super().__init__(env, noop_action_max, *args, **kwargs)
-        self.fire_index = self.env.unwrapped.get_action_meanings().index('FIRE') if 'FIRE' in self.env.unwrapped.get_action_meanings() else -1
+        self.fire_index = (
+            self.env.unwrapped.get_action_meanings().index("FIRE")
+            if "FIRE" in self.env.unwrapped.get_action_meanings()
+            else -1
+        )
 
     def _reset(self, tensordict, **kwargs):
         obs_dict = super()._reset(tensordict, **kwargs)
         if self.fire_index >= 0:
             action_fire = self.action_spec.encode(self.fire_index)
-            obs_dict['action'] = action_fire
+            obs_dict["action"] = action_fire
             tensordict = self._step(obs_dict)
-            obs_dict = tensordict['next']
+            obs_dict = tensordict["next"]
         return obs_dict

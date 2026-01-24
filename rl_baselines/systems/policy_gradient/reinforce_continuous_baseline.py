@@ -1,20 +1,22 @@
 from __future__ import annotations
+
 from typing import Union
-from omegaconf import OmegaConf
+
 import torch
-from torch import nn, optim
+from omegaconf import OmegaConf
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule, TensorDictSequential
-from rl_baselines.common import (
-    get_env_obs_dim,
-    get_env_action_dim,
-)
+from torch import nn, optim
+from torchrl.data import LazyTensorStorage, ReplayBuffer
+from torchrl.envs import EnvBase
+
+import rl_baselines
+from rl_baselines.common import get_env_action_dim, get_env_obs_dim
+from rl_baselines.systems.base import RLBaseSystem
+
 from .action_sampler import ContinuousSampler
 from .losses import ReinforceContinuousWithBaselineLoss
-import rl_baselines
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-from rl_baselines.systems.base import RLBaseSystem
-from torchrl.envs import EnvBase
+
 
 @rl_baselines.register("reinforce-continuous-baseline")
 class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
@@ -28,44 +30,34 @@ class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
     ) -> None:
         RLBaseSystem.__init__(self, cfg, environment)
         self.mean_module = TensorDictModule(
-            mean_network,
-            in_keys=['observation'],
-            out_keys=['mean_action']
+            mean_network, in_keys=["observation"], out_keys=["mean_action"]
         )
 
         self.std_module = TensorDictModule(
-            std_network,
-            in_keys=['observation'],
-            out_keys=['std_action']
+            std_network, in_keys=["observation"], out_keys=["std_action"]
         )
         self.baseline_module = TensorDictModule(
-            baseline_network,
-            in_keys=['observation'],
-            out_keys=['baseline']
+            baseline_network, in_keys=["observation"], out_keys=["baseline"]
         )
 
         self.action_sampler = TensorDictModule(
             ContinuousSampler(environment.action_spec),
-            in_keys=['mean_action', 'std_action'],
-            out_keys=['action']
+            in_keys=["mean_action", "std_action"],
+            out_keys=["action"],
         )
 
         self.policy_reinforce = TensorDictSequential(
-            self.mean_module,
-            self.std_module,
-            self.baseline_module,
-            self.action_sampler
+            self.mean_module, self.std_module, self.baseline_module, self.action_sampler
         )
         self.loss_module = TensorDictModule(
             ReinforceContinuousWithBaselineLoss(self.cfg.system.gamma),
-            in_keys=['mean_action', 'std_action', 'baseline', 'action', 'delta', 't'],
-            out_keys=['pg_loss', 'baseline_loss']
+            in_keys=["mean_action", "std_action", "baseline", "action", "delta", "t"],
+            out_keys=["pg_loss", "baseline_loss"],
         )
 
-
-    def forward(self, batch) -> TensorDict :
+    def forward(self, batch) -> TensorDict:
         raise NotImplementedError("")
-        #pass#return self.policy_module(batch)
+        # pass#return self.policy_module(batch)
 
     def training_step(self, batch, batch_idx):
         # in reinforce a train step we consider a trajectory
@@ -75,35 +67,40 @@ class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
         max_traj_len = self.cfg.data.max_trajectory_length
         with torch.no_grad():
             episode_data = self.env.rollout(
-                max_traj_len,
-                policy=self.policy_reinforce,
-                auto_cast_to_device=True
+                max_traj_len, policy=self.policy_reinforce, auto_cast_to_device=True
             )
         # compute Returns in linear time
         GL2 = [
-            torch.zeros((1, ), dtype=torch.float32, device=episode_data.device) 
+            torch.zeros((1,), dtype=torch.float32, device=episode_data.device)
             for _ in range(len(episode_data))
         ]
         for t_episode in range(len(episode_data) - 2, -1, -1):
-            G = GL2[t_episode + 1] * self.cfg.system.gamma + episode_data[t_episode + 1]['next', 'reward']
+            G = (
+                GL2[t_episode + 1] * self.cfg.system.gamma
+                + episode_data[t_episode + 1]["next", "reward"]
+            )
             GL2[t_episode] = G
 
-        deltas = torch.vstack(GL2) - episode_data['baseline']
-        norm_deltas = (deltas - deltas.mean())/(deltas.std() + 1e-9)
-        episode_data['delta'] = norm_deltas
-        episode_data['t'] = torch.arange(0, len(episode_data)).unsqueeze(-1).to(episode_data.device)
+        deltas = torch.vstack(GL2) - episode_data["baseline"]
+        norm_deltas = (deltas - deltas.mean()) / (deltas.std() + 1e-9)
+        episode_data["delta"] = norm_deltas
+        episode_data["t"] = (
+            torch.arange(0, len(episode_data)).unsqueeze(-1).to(episode_data.device)
+        )
 
         replay_buffer = ReplayBuffer(
-            storage=LazyTensorStorage(max_size=max_traj_len, device=episode_data.device),
-            batch_size=batch_size
+            storage=LazyTensorStorage(
+                max_size=max_traj_len, device=episode_data.device
+            ),
+            batch_size=batch_size,
         )
         ##import pdb;pdb.set_trace()
 
         replay_buffer.extend(episode_data)
 
-        cum_rw = episode_data['next', 'reward'].sum()
+        cum_rw = episode_data["next", "reward"].sum()
         self.cum_rewards.append(cum_rw)
-        avg_rw = sum(self.cum_rewards)/len(self.cum_rewards)
+        avg_rw = sum(self.cum_rewards) / len(self.cum_rewards)
 
         nbatches_samples = (epochs_per_episode * len(episode_data)) // batch_size
         for ibatch in range(nbatches_samples):
@@ -111,14 +108,14 @@ class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
             probs_dict = self.mean_module(tensordict)
             probs_dict = self.std_module(tensordict)
             probs_dict = self.baseline_module(tensordict)
-            #probs_dict = self.policy_reinforce(tensordict)
+            # probs_dict = self.policy_reinforce(tensordict)
             loss_dict = self.loss_module(probs_dict)
             optimizer.zero_grad()
-            self.manual_backward(loss_dict.get('pg_loss').mean())
+            self.manual_backward(loss_dict.get("pg_loss").mean())
             optimizer.step()
 
             optimizer_bl.zero_grad()
-            self.manual_backward(loss_dict.get('baseline_loss').mean())
+            self.manual_backward(loss_dict.get("baseline_loss").mean())
             optimizer_bl.step()
             ##distribution = Normal(probs_dict['mean'], probs_dict['std'])
             ##log_policy_action = distribution.log_prob(tensordict['action'])
@@ -154,25 +151,29 @@ class ReinforceContinuousWithBaselineSystem(RLBaseSystem):
         cfg_optimizer = self.cfg.system.optimizer
         optimizer_class = getattr(optim, cfg_optimizer.name)
         optimizer = optimizer_class(
-            list(self.mean_module.parameters()) + list(self.std_module.parameters()), 
-            **cfg_optimizer.args
+            list(self.mean_module.parameters()) + list(self.std_module.parameters()),
+            **cfg_optimizer.args,
         )
-        optimizer_bl = optimizer_class(self.baseline_module.module.parameters(), **cfg_optimizer.args)
+        optimizer_bl = optimizer_class(
+            self.baseline_module.module.parameters(), **cfg_optimizer.args
+        )
 
         return [optimizer, optimizer_bl]
 
     @classmethod
-    def from_config(cls, config: Union[str, OmegaConf]) -> ReinforceContinuousWithBaselineSystem:
+    def from_config(
+        cls, config: Union[str, OmegaConf]
+    ) -> ReinforceContinuousWithBaselineSystem:
         if isinstance(config, str):
             cfg = OmegaConf.load(config)
         else:
             cfg = config
         env = RLBaseSystem.load_env_from_cfg(cfg.system.environment)
-        #import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         mean_network = RLBaseSystem.load_network_from_cfg(
             cfg.system.mean_network,
             input_dim=get_env_obs_dim(env),
-            output_dim=get_env_action_dim(env)
+            output_dim=get_env_action_dim(env),
         )
         std_network = RLBaseSystem.load_network_from_cfg(
             cfg.system.std_network,

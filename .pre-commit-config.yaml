@@ -30,11 +30,11 @@ repos:
 
     # Ruff for fast Python linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.9
+    rev: v0.14.14
     hooks:
     - id: ruff
-      args: [--fix, --exit-non-zero-on-fix]
-      exclude: ^legacy/*
+      args: [--fix]
+      exclude: ^legacy/.*
     - id: ruff-format
       exclude: |
         (?x)^(
@@ -50,15 +50,16 @@ repos:
       - types-requests
       - types-python-dateutil
       - pydantic
-      args: [--strict, --ignore-missing-imports]
-      files: ^src/
-    # Security checks
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.5
+      args: [--ignore-missing-imports]
+      files: ^rl_baselines/
+
+    # Documentation checks
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
     hooks:
-    - id: bandit
-      args: [-r, src/]
-      exclude: tests/
-      additional_dependencies: [pbr]
-      skips: ["B101", "B311"]
-    # Check for common security issues in dependencies
+    - id: python-use-type-annotations
+    - id: python-check-blanket-noqa
+    - id: python-check-blanket-type-ignore
+    - id: rst-backticks
+    - id: rst-directive-colons
+    - id: rst-inline-touching-normal

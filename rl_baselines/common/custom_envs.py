@@ -1,6 +1,6 @@
 import torch
 from typing import Optional, Union
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 import rl_baselines.environments as cenvs
 from torchrl.envs import (
     EnvBase,
@@ -153,7 +153,7 @@ def parse_transforms_cfg(
             return Compose(*transforms)
         else:
             return None
-    elif isinstance(transforms_cfg, ListConfig):
+    else:  # isinstance(transforms_cfg, ListConfig):
         raise NotImplementedError("Not supported list")
         # if len(transforms_cfg) > 0:
         #    for value in transforms_cfg:

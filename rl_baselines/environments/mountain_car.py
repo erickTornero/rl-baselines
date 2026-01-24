@@ -39,7 +39,7 @@ def gen_params(g=10.0, batch_size=None) -> TensorDictBase:
 
 
 class CustomMountainCarContiuous(EnvBase):
-    metadata = {}
+    metadata = {}  # type: ignore[var-annotated]
     batch_locked = False
 
     def __init__(self, td_params=None, seed=None, device="cpu", render: bool = False):

@@ -9,18 +9,20 @@ from torchrl.data import (
     UnboundedContinuousTensorSpec,
     DiscreteTensorSpec,
 )
-from typing import Optional, List
+from typing import Optional, List, Any
 
 
-def _make_spec(self, td_params):
+def _make_spec(self: Any, td_params: TensorDictBase) -> None:
     pass
 
 
-def _set_seed(self, tensordict):
+def _set_seed(self: Any, tensordict: TensorDictBase) -> None:
     pass
 
 
-def gen_params(g=10.0, batch_size: Optional[List[int]] = None) -> TensorDictBase:
+def gen_params(
+    g: float = 10.0, batch_size: Optional[List[int]] = None
+) -> TensorDictBase:
     if batch_size is None:
         batch_size = []
     td = TensorDict(
@@ -40,16 +42,16 @@ def gen_params(g=10.0, batch_size: Optional[List[int]] = None) -> TensorDictBase
 
 
 class CustomPendulumV1(EnvBase):
-    metadata = {}
+    metadata = {}  # type: ignore[var-annotated]
     batch_locked = False
 
     def __init__(
         self,
-        td_params=None,
+        td_params: TensorDictBase | None = None,
         seed: Optional[int] = None,
-        device="cpu",
+        device: torch.DeviceObjType | str = "cpu",
         render: bool = False,
-    ):
+    ) -> None:
         if td_params is None:
             td_params = self.gen_params()
 
@@ -97,7 +99,7 @@ class CustomPendulumV1(EnvBase):
     # Mandatory methods: _step, _reset and _set_seed
     _set_seed = _set_seed
 
-    def _reset(self, tensordict):
+    def _reset(self, tensordict: TensorDict) -> TensorDict:
         batch_size = (
             tensordict.batch_size if tensordict is not None else self.batch_size
         )
@@ -106,7 +108,7 @@ class CustomPendulumV1(EnvBase):
         obs, _ = self._env.reset()
         return TensorDict({"observation": obs}, batch_size=batch_size).to(self.device)
 
-    def _step(self, tensordict):
+    def _step(self, tensordict: TensorDict) -> TensorDict:
         action = tensordict.get("action")
         if isinstance(action, torch.Tensor):
             action = action.cpu().numpy()
@@ -130,5 +132,5 @@ class CustomPendulumV1(EnvBase):
         )
         return out
 
-    def render(self):
+    def render(self) -> Any:
         return self._env.render()

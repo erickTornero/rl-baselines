@@ -167,9 +167,8 @@ class DDPGSystem(RLBaseSystem):
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> DDPGSystem:
         if isinstance(config, str):
-            cfg = OmegaConf.load(config)
-        else:
-            cfg = config
+            config = OmegaConf.load(config)
+
         env = RLBaseSystem.load_env_from_cfg(config.system.environment)
         state_action_network = RLBaseSystem.load_network_from_cfg(
             config.system.state_action_network,
@@ -219,7 +218,7 @@ class DDPGSystem(RLBaseSystem):
         )
 
         return cls(
-            cfg,
+            config,
             state_action_network,
             state_action_target_network,
             policy_network,

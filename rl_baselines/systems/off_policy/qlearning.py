@@ -172,8 +172,10 @@ class QLearningDiscreteSystem(pl.LightningModule, SaveUtils):
         if save_video:
             video.release()
 
+        if isinstance(crw, torch.Tensor):
+            crw = crw.item()
         print(
-            f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}"
+            f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw:.2f}"
         )
 
     def display_img(self, img):

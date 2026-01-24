@@ -17,7 +17,7 @@ class NoiseProcess:
         self.device = device
         self.dtype = dtype
 
-    def __call__(self) -> torch.Tensor:
+    def __call__(self, *args) -> torch.Tensor:
         raise NotImplementedError("")
 
     def init(self, *args, **kwargs):

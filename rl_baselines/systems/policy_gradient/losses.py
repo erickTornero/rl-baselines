@@ -98,7 +98,7 @@ class ReinforceContinuousWithBaselineLoss(ReinforceContinuousLoss):
     def __init__(self, gamma: float) -> None:
         super().__init__(gamma)
 
-    def __call__(
+    def __call__(  # type: ignore[override]
         self,
         mean_action: torch.Tensor,
         std_action: torch.Tensor,
@@ -130,7 +130,7 @@ class ReinforceContinuousWithActorCriticLoss(ReinforceContinuousLoss):
         J = -gamma_cumm * delta * log_p_action
         return J
 
-    def __call__(
+    def __call__(  # type: ignore[override]
         self,
         mean_action: torch.Tensor,
         std_action: torch.Tensor,

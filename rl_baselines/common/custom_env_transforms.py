@@ -29,7 +29,7 @@ class FrameSkipMaxTransform(Transform):
         if frame_skip < 1:
             raise ValueError("frame_skip should have a value greater or equal to one.")
         self.frame_skip = frame_skip
-        self._last_frames = deque(maxlen=max_of_last)
+        self._last_frames: deque = deque(maxlen=max_of_last)
         self.in_key_max = in_key_max
         self.out_key_max = out_key_max
         self.max_of_last = max_of_last

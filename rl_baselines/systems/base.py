@@ -31,7 +31,9 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
 
         self.env = environment
         self.automatic_optimization = False
-        self.cum_rewards = deque(maxlen=10)  # cfg.checkpoint.average_last_k_episodes)
+        self.cum_rewards: deque = deque(
+            maxlen=10
+        )  # cfg.checkpoint.average_last_k_episodes)
 
     def on_fit_start(self) -> None:
         self.env = self.env.to(self.device)
@@ -63,7 +65,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
                 video.write(img)
                 # frames.append(img)
         trajectory = []
-        crw = 0
+        crw: torch.Tensor | int = 0
         max_episode_steps = self.cfg.data.max_trajectory_length
         pbar = tqdm(total=max_episode_steps)
         for istep in range(max_episode_steps):
@@ -88,8 +90,10 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         if save_video:
             video.release()
 
+        if isinstance(crw, torch.Tensor):
+            crw = crw.item()
         print(
-            f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw.item():.2f}"
+            f"Episode finised at step: {istep + 1}/{max_episode_steps}, Episode Reward: {crw:.2f}"
         )
 
     def display_img(self, img):
@@ -191,6 +195,7 @@ class RLBaseSystem(pl.LightningModule, SaveUtils):
         target_network: Union[nn.Module, nn.Sequential],
         update_cfg: OmegaConf,
     ) -> Optional[UpdateNetworks]:
+        update: SoftUpdate | HardUpdate | None = None
         if update_cfg.type == "soft-update":
             update = SoftUpdate(source_network, target_network, **update_cfg.args)
         elif update_cfg.type == "hard-update":

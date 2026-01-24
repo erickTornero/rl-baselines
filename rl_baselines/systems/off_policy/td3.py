@@ -218,9 +218,9 @@ class TD3System(RLBaseSystem):
     @classmethod
     def from_config(cls, config: Union[str, OmegaConf]) -> TD3System:
         if isinstance(config, str):
-            cfg = OmegaConf.load(config)
-        else:
-            cfg = config
+            config = OmegaConf.load(config)
+        # else:
+        #    cfg = config
         env = RLBaseSystem.load_env_from_cfg(config.system.environment)
         state_action_network_1 = RLBaseSystem.load_network_from_cfg(
             config.system.state_action_network,
@@ -293,7 +293,7 @@ class TD3System(RLBaseSystem):
         )
 
         return cls(
-            cfg,
+            config,
             state_action_network_1,
             state_action_network_2,
             state_action_target_network_1,

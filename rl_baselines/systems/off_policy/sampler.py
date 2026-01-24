@@ -76,3 +76,4 @@ class ActionContinuousClamper:
         self, device: Optional[Union[torch.DeviceObjType, str]] = None
     ) -> ActionContinuousClamper:
         self.action_spec = self.action_spec.to(device)
+        return self

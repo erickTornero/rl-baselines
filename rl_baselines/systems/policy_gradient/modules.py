@@ -26,7 +26,7 @@ class AdvantageEstimator(TargetEstimator):
     ):
         super().__init__(value_network, gamma)
 
-    def __call__(
+    def __call__(  # type: ignore[override]
         self,
         reward: torch.Tensor,
         observation: torch.Tensor,
@@ -45,7 +45,7 @@ class TDError(TargetEstimator):
     ):
         super().__init__(value_network, gamma)
 
-    def __call__(
+    def __call__(  # type: ignore[override]
         self,
         reward: torch.Tensor,
         observation: torch.Tensor,

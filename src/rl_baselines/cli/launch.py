@@ -10,7 +10,8 @@ from pytorch_lightning.utilities import rank_zero_only
 
 import rl_baselines
 
-if __name__ == "__main__":
+
+def app():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -80,3 +81,7 @@ if __name__ == "__main__":
         model.test_rollout(save_video=args.save_video)
     else:
         raise NotImplementedError("")
+
+
+if __name__ == "__main__":
+    app()

@@ -27,7 +27,11 @@ def make_custom_envs(
         env_class = getattr(cenvs, name)
         return env_class(*args, **kwargs)
     except Exception:
+        import ale_py
+        import gymnasium as gym
         from torchrl import envs
+
+        gym.register_envs(ale_py)
 
         if "render" in kwargs:
             render = kwargs.pop("render")

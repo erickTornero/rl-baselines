@@ -100,7 +100,10 @@ class QTargetEstimatorContinuous(torch.nn.Module):
         next_done: torch.Tensor,
     ) -> torch.Tensor:
         next_action_target = self.policy_network_target(next_observation)
-        assert next_action_target.ndim == next_observation.ndim
+        if next_action_target.ndim != next_observation.ndim:
+            raise ValueError(
+                "next action and next observation must have the same number of dimensions"
+            )
         next_state_action = torch.concatenate(
             (next_observation, next_action_target), dim=-1
         )
@@ -147,7 +150,10 @@ class QTargetEstimatorTD3Continuous(torch.nn.Module):
         next_action_target = torch.clip(
             next_action_target, self.action_spec.low, self.action_spec.high
         )
-        assert next_action_target.ndim == next_observation.ndim
+        if next_action_target.ndim != next_observation.ndim:
+            raise ValueError(
+                "next action and next observation must have the same number of dimensions"
+            )
         next_state_action = torch.concatenate(
             (next_observation, next_action_target), dim=-1
         )

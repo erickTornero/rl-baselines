@@ -65,7 +65,8 @@ def mlp_builder(
             if activation_hidden_info.kwargs is not None
             else {}
         )
-    assert n_hidden, "hidden dim must be greater than 0"
+    if n_hidden == 0:
+        raise ValueError("n_hidden must be greater than 0")
     layers = [nn.Linear(in_dim, hidden_dim), activation_class()]
     for _ in range(n_hidden - 1):
         layers += [

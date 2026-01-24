@@ -31,7 +31,8 @@ class SoftUpdate(UpdateNetworks):
         self.tau = tau
         if initialize_same_weights:
             self.init_same()
-        assert tau > 0 and tau < 1.0, "tau must be in range <0, 1>"
+        if not (tau > 0 and tau < 1.0):
+            raise ValueError("tau must be in range <0, 1>")
 
     def __call__(self):
         self._soft_update()

@@ -27,7 +27,8 @@ class DQNPreprocessing0(Preprocessing):
         )
 
     def get_luminance_channel(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
-        assert rgb_tensor.ndim == 3, "dim of input must be 3 [W, H, C]"
+        if rgb_tensor.ndim != 3:
+            raise ValueError("dim of input must be 3 [W, H, C]")
         Y = (
             0.2126 * rgb_tensor[:, :, 0]
             + 0.7152 * rgb_tensor[:, :, 1]
@@ -99,7 +100,8 @@ class LuminanceTransform(nn.Module):
         super().__init__(*args, **kwargs)
 
     def __call__(self, rgb_tensor) -> torch.Tensor:
-        assert rgb_tensor.ndim == 3, "dim of input must be 3 [W, H, C]"
+        if rgb_tensor.ndim != 3:
+            raise ValueError("dim of input must be 3 [W, H, C]")
         Y = (
             0.2126 * rgb_tensor[:, :, 0]
             + 0.7152 * rgb_tensor[:, :, 1]

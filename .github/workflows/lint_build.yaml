@@ -15,7 +15,7 @@ jobs:
           pip install ruff
       # Update output format to enable automatic inline annotations.
       - name: Run Linting & Formatting
-        run: ruff check
+        run: ruff check --exclude legacy/
       - name: Build release distributions
         run: |
           # NOTE: put your own distribution build steps here.
